@@ -71,6 +71,7 @@ import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.asImageBitmap
 import androidx.compose.ui.graphics.drawscope.scale
 import androidx.compose.ui.graphics.drawscope.translate
+import androidx.compose.ui.graphics.lerp
 import androidx.compose.ui.graphics.luminance
 import androidx.compose.ui.graphics.layer.GraphicsLayer
 import androidx.compose.ui.graphics.layer.drawLayer
@@ -98,6 +99,7 @@ import com.anon.schedule.ui.importer.ImportZfScreen
 import com.anon.schedule.ui.mine.ChaoxingScreen
 import com.anon.schedule.ui.mine.GradesScreen
 import com.anon.schedule.ui.mine.MineScreen
+import com.anon.schedule.ui.mine.UpdateLogScreen
 import com.anon.schedule.ui.schedule.ScheduleScreen
 import com.anon.schedule.ui.settings.CourseListScreen
 import com.anon.schedule.ui.settings.QuickActionsScreen
@@ -109,6 +111,7 @@ import com.anon.schedule.ui.table.TableSettingsScreen
 import com.anon.schedule.ui.table.TableStyleScreen
 import com.anon.schedule.ui.theme.AppTheme
 import com.anon.schedule.ui.theme.GlassParams
+import com.anon.schedule.ui.theme.LocalBackdrop
 import com.anon.schedule.ui.theme.LocalHasBackground
 import com.anon.schedule.ui.theme.SuperellipseShape
 import com.anon.schedule.ui.theme.glassGlow
@@ -117,6 +120,9 @@ import com.anon.schedule.ui.theme.rememberGlassMotion
 import com.anon.schedule.ui.theme.rememberGlassRefraction
 import com.anon.schedule.ui.today.TodayScreen
 import com.anon.schedule.widget.Widgets
+import com.kyant.backdrop.backdrops.LayerBackdrop
+import com.kyant.backdrop.backdrops.layerBackdrop
+import com.kyant.backdrop.backdrops.rememberLayerBackdrop
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.withContext
@@ -154,6 +160,7 @@ sealed class SubPage {
     data object ImportCsv : SubPage()
     data object Grades : SubPage()
     data object Chaoxing : SubPage()
+    data object UpdateLog : SubPage()
     data object TableManage : SubPage()
     data class TableSettings(val tableId: Long) : SubPage()
     data class TableData(val tableId: Long) : SubPage()
@@ -178,10 +185,15 @@ class MainActivity : ComponentActivity() {
         setContent {
             val st by Repo.state.collectAsState()
             val hasBackground = st.tableSettings().backgroundPath != null
+            // 卡片玻璃的采样层：只录「背景图 + 遮罩」，卡片据此做模糊/折射
+            val glassBackdrop = rememberLayerBackdrop()
             AppTheme(themeMode = st.settings.themeMode, liquidGlass = st.settings.liquidGlass) {
                 // 有背景图时卡片需要更实的底色托住文字（夜间尤其），用 CompositionLocal 下传
-                CompositionLocalProvider(LocalHasBackground provides hasBackground) {
-                    AppRoot()
+                CompositionLocalProvider(
+                    LocalHasBackground provides hasBackground,
+                    LocalBackdrop provides if (st.settings.liquidGlass) glassBackdrop else null
+                ) {
+                    AppRoot(glassBackdrop)
                 }
             }
         }
@@ -196,7 +208,7 @@ class MainActivity : ComponentActivity() {
 }
 
 @Composable
-fun AppRoot() {
+fun AppRoot(backdrop: LayerBackdrop) {
     val st by Repo.state.collectAsState()
     val liquidGlass = st.settings.liquidGlass
 
@@ -271,23 +283,46 @@ fun AppRoot() {
                     drawContent()
                 }
         ) {
-            background?.let {
-                Image(
-                    bitmap = it,
-                    contentDescription = null,
-                    contentScale = ContentScale.Crop,
-                    modifier = Modifier.fillMaxSize(),
-                    alpha = 0.9f
-                )
+            // 主题渐变中 surface 亮度是连续变化的：按亮度平滑过渡遮罩色，避免中途由白突然转黑
+            val wallpaperScrim = lerp(
+                Color.White.copy(alpha = 0.40f),
+                MaterialTheme.colorScheme.background.copy(alpha = 0.58f),
+                ((0.5f - MaterialTheme.colorScheme.surface.luminance()) / 0.35f).coerceIn(0f, 1f)
+            )
+            // 二级页面（设置等）自带不透明底色：壁纸不绘制、也不进采样层，避免顶部状态栏漏出背景图
+            val showWallpaper = sub == null
+            // 玻璃采样层：壁纸 + 遮罩单独录一层，卡片从这里取像素做模糊/折射。
+            // 只录背景、不录卡片自身，否则卡片会把上一帧的自己折射进去（重影）
+            Box(
+                Modifier
+                    .matchParentSize()
+                    .then(if (liquidGlass) Modifier.layerBackdrop(backdrop) else Modifier)
+            ) {
+                if (showWallpaper) {
+                    background?.let {
+                        Image(
+                            bitmap = it,
+                            contentDescription = null,
+                            contentScale = ContentScale.Crop,
+                            modifier = Modifier.fillMaxSize(),
+                            alpha = 0.9f
+                        )
+                    }
+                    // 背景图遮罩：浅色模式加白、深色模式压暗，保证图上文字始终有对比度
+                    if (background != null) {
+                        Box(
+                            Modifier
+                                .matchParentSize()
+                                .background(wallpaperScrim)
+                        )
+                    }
+                }
             }
 
-            // 背景图遮罩：浅色模式加白、深色模式压暗，保证图上文字始终有对比度
-            val isDarkTheme = MaterialTheme.colorScheme.surface.luminance() < 0.5f
             Scaffold(
-                containerColor = if (background != null) {
-                    if (isDarkTheme) MaterialTheme.colorScheme.background.copy(alpha = 0.58f)
-                    else Color.White.copy(alpha = 0.40f)
-                } else MaterialTheme.colorScheme.background
+                // 遮罩已画在玻璃采样层里，这里让出底色，避免把折射层再盖灰
+                containerColor = if (background != null && showWallpaper) Color.Transparent
+                else MaterialTheme.colorScheme.background
             ) { padding ->
                 Box(
                     Modifier
@@ -307,7 +342,8 @@ fun AppRoot() {
                         MineScreen(
                             onSettings = { push(SubPage.Settings) },
                             onGrades = { push(SubPage.Grades) },
-                            onChaoxing = { push(SubPage.Chaoxing) }
+                            onChaoxing = { push(SubPage.Chaoxing) },
+                            onUpdateLog = { push(SubPage.UpdateLog) }
                         )
                     }
                     // 二级页面浮在 tab 之上
@@ -330,6 +366,7 @@ fun AppRoot() {
                         SubPage.ImportCsv -> ImportCsvScreen(onBack = { pop() })
                         SubPage.Grades -> GradesScreen(onBack = { pop() })
                         SubPage.Chaoxing -> ChaoxingScreen(onBack = { pop() })
+                        SubPage.UpdateLog -> UpdateLogScreen(onBack = { pop() })
                         SubPage.TableManage -> TableManageScreen(
                             onBack = { pop() },
                             onEdit = { push(SubPage.TableSettings(it)) },

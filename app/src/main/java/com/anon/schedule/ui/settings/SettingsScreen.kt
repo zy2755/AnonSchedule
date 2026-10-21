@@ -3,19 +3,22 @@ package com.anon.schedule.ui.settings
 import android.app.Application
 import androidx.activity.compose.rememberLauncherForActivityResult
 import androidx.activity.result.contract.ActivityResultContracts
+import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
+import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
+import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
+import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.rememberScrollState
+import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
-import androidx.compose.material.icons.automirrored.filled.ArrowBack
 import androidx.compose.material.icons.filled.AccessTime
 import androidx.compose.material.icons.filled.CalendarMonth
-import androidx.compose.material.icons.filled.Check
 import androidx.compose.material.icons.filled.DarkMode
 import androidx.compose.material.icons.filled.DateRange
 import androidx.compose.material.icons.filled.Image
@@ -30,16 +33,11 @@ import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.DatePicker
 import androidx.compose.material3.DatePickerDialog
 import androidx.compose.material3.ExperimentalMaterial3Api
-import androidx.compose.material3.Icon
-import androidx.compose.material3.IconButton
 import androidx.compose.material3.MaterialTheme
-import androidx.compose.material3.ModalBottomSheet
 import androidx.compose.material3.RadioButton
 import androidx.compose.material3.Scaffold
-import androidx.compose.material3.Switch
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
-import androidx.compose.material3.TopAppBar
 import androidx.compose.material3.rememberDatePickerState
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.collectAsState
@@ -49,15 +47,30 @@ import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.draw.clip
+import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.graphics.luminance
 import androidx.compose.ui.platform.LocalContext
+import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
+import androidx.compose.ui.window.Dialog
+import androidx.compose.ui.window.DialogProperties
 import com.anon.schedule.SubPage
 import com.anon.schedule.data.Repo
 import com.anon.schedule.data.tableSettings
+import com.anon.schedule.ui.common.GroupCard
+import com.anon.schedule.ui.common.GroupLabel
+import com.anon.schedule.ui.common.GroupRow
 import com.anon.schedule.ui.common.NumberPickerDialog
-import com.anon.schedule.ui.common.SectionTitle
-import com.anon.schedule.ui.common.SettingRow
-import com.anon.schedule.ui.common.ThinDivider
+import com.anon.schedule.ui.common.PageHeader
+import com.anon.schedule.ui.common.PillSwitch
+import com.anon.schedule.ui.common.TileBlue
+import com.anon.schedule.ui.common.TileCyan
+import com.anon.schedule.ui.common.TileGreen
+import com.anon.schedule.ui.common.TileOrange
+import com.anon.schedule.ui.common.TilePink
+import com.anon.schedule.ui.common.TilePurple
+import com.anon.schedule.ui.common.TileRed
 import java.io.File
 import java.time.Instant
 import java.time.LocalDate
@@ -94,14 +107,7 @@ fun SettingsScreen(onBack: () -> Unit, onOpenSub: (SubPage) -> Unit) {
 
     Scaffold(
         topBar = {
-            TopAppBar(
-                title = { Text("设置") },
-                navigationIcon = {
-                    IconButton(onClick = onBack) {
-                        Icon(Icons.AutoMirrored.Filled.ArrowBack, contentDescription = "返回")
-                    }
-                }
-            )
+            PageHeader("设置", onBack = onBack)
         }
     ) { padding ->
         Column(
@@ -110,130 +116,132 @@ fun SettingsScreen(onBack: () -> Unit, onOpenSub: (SubPage) -> Unit) {
                 .padding(padding)
                 .verticalScroll(rememberScrollState())
         ) {
-            SectionTitle("通用设置")
-
-            SettingRow(
-                icon = Icons.Default.Layers,
-                title = "显示非本周课程",
-                value = if (settings.showOtherWeek) "开启：其它周次课程也会展示" else "关闭：仅加载当前周课程",
-                trailing = {
-                    Switch(
-                        checked = settings.showOtherWeek,
-                        onCheckedChange = { on ->
-                            Repo.updateSettings { s -> s.copy(showOtherWeek = on) }
-                        }
-                    )
-                }
-            )
-            ThinDivider()
-
-            SettingRow(
-                icon = Icons.Default.ViewWeek,
-                title = "是否显示周末",
-                value = if (settings.showSaturday && settings.showSunday) "显示周六、周日" else "只显示周一至周五",
-                trailing = {
-                    Switch(
-                        checked = settings.showSaturday && settings.showSunday,
-                        onCheckedChange = { on ->
-                            Repo.updateSettings { s -> s.copy(showSaturday = on, showSunday = on) }
-                        }
-                    )
-                }
-            )
-            ThinDivider()
-
-            SettingRow(
-                icon = Icons.Default.CalendarMonth,
-                title = "设置开学日期",
-                value = settings.startDate?.let { "开学日期：" + LocalDate.ofEpochDay(it).format(dateFormatter) }
-                    ?: "未设置",
-                onClick = { showDatePicker = true }
-            )
-            ThinDivider()
-
-            SettingRow(
-                icon = Icons.Default.DateRange,
-                title = "本学期总周数",
-                value = "${settings.maxWeek} 周",
-                onClick = { showWeekCount = true }
-            )
-            ThinDivider()
-
-            SettingRow(
-                icon = Icons.Default.Today,
-                title = "当前周数",
-                value = if (settings.startDate == null) "请设置开始日期" else "第 ${settings.currentWeek} 周",
-                onClick = {
-                    if (settings.startDate == null) showCurrentWeek = true else showCurrentWeek = true
-                }
-            )
-            ThinDivider()
-
-            SettingRow(
-                icon = Icons.Default.Loop,
-                title = "设置每周起始日",
-                value = if (settings.sundayFirst) "周日" else "周一",
-                onClick = { showStartDay = true }
-            )
-            ThinDivider()
-
-            SettingRow(
-                icon = Icons.Default.Speed,
-                title = "快捷操作",
-                value = "调课、临时加课、停课",
-                onClick = { onOpenSub(SubPage.Quick) }
-            )
-            ThinDivider()
-
-            SettingRow(
-                icon = Icons.Default.AccessTime,
-                title = "调课操作",
-                value = "将指定日期的课程调到另一日期",
-                onClick = { onOpenSub(SubPage.Quick) }
-            )
-
-            SectionTitle("外观设置")
-
-            SettingRow(
-                icon = Icons.Default.Palette,
-                title = "液态玻璃",
-                value = if (global.liquidGlass) "开启" else "关闭",
-                trailing = {
-                    Switch(
-                        checked = global.liquidGlass,
-                        onCheckedChange = { on ->
-                            Repo.update { s -> s.copy(settings = s.settings.copy(liquidGlass = on)) }
-                        }
-                    )
-                }
-            )
-            ThinDivider()
-
-            SettingRow(
-                icon = Icons.Default.DarkMode,
-                title = "主题",
-                value = when (global.themeMode) {
-                    1 -> "浅色"
-                    2 -> "深色"
-                    else -> "跟随系统"
-                },
-                onClick = { showThemeSheet = true }
-            )
-            ThinDivider()
-
-            SettingRow(
-                icon = Icons.Default.Image,
-                title = "背景图",
-                value = if (settings.backgroundPath != null) "已设置（点击更换）" else "未设置",
-                onClick = { pickImage.launch("image/*") },
-                trailing = {
-                    if (settings.backgroundPath != null) {
-                        TextButton(onClick = {
-                            Repo.updateSettings { s -> s.copy(backgroundPath = null) }
-                        }) { Text("清除") }
+            GroupLabel("通用")
+            GroupCard {
+                GroupRow(
+                    icon = Icons.Default.Layers,
+                    tileColor = TileBlue,
+                    title = "显示非本周课程",
+                    subtitle = if (settings.showOtherWeek) "其它周次的课程也会展示" else "只加载当前周课程",
+                    trailing = {
+                        PillSwitch(
+                            checked = settings.showOtherWeek,
+                            onCheckedChange = { on ->
+                                Repo.updateSettings { s -> s.copy(showOtherWeek = on) }
+                            }
+                        )
                     }
-                }
-            )
+                )
+                GroupRow(
+                    icon = Icons.Default.ViewWeek,
+                    tileColor = TileGreen,
+                    title = "是否显示周末",
+                    subtitle = if (settings.showSaturday && settings.showSunday) "显示周六、周日" else "只显示周一至周五",
+                    trailing = {
+                        PillSwitch(
+                            checked = settings.showSaturday && settings.showSunday,
+                            onCheckedChange = { on ->
+                                Repo.updateSettings { s -> s.copy(showSaturday = on, showSunday = on) }
+                            }
+                        )
+                    }
+                )
+            }
+
+            GroupLabel("课表")
+            GroupCard {
+                GroupRow(
+                    icon = Icons.Default.CalendarMonth,
+                    tileColor = TileOrange,
+                    title = "设置开学日期",
+                    subtitle = settings.startDate?.let {
+                        "开学日期：" + LocalDate.ofEpochDay(it).format(dateFormatter)
+                    } ?: "未设置",
+                    onClick = { showDatePicker = true }
+                )
+                GroupRow(
+                    icon = Icons.Default.DateRange,
+                    tileColor = TilePurple,
+                    title = "本学期总周数",
+                    subtitle = "${settings.maxWeek} 周",
+                    onClick = { showWeekCount = true }
+                )
+                GroupRow(
+                    icon = Icons.Default.Today,
+                    tileColor = TileCyan,
+                    title = "当前周数",
+                    subtitle = if (settings.startDate == null) "请设置开始日期" else "第 ${settings.currentWeek} 周",
+                    onClick = { showCurrentWeek = true }
+                )
+                GroupRow(
+                    icon = Icons.Default.Loop,
+                    tileColor = TilePink,
+                    title = "设置每周起始日",
+                    subtitle = if (settings.sundayFirst) "周日" else "周一",
+                    onClick = { showStartDay = true }
+                )
+            }
+
+            GroupLabel("功能")
+            GroupCard {
+                GroupRow(
+                    icon = Icons.Default.Speed,
+                    tileColor = TileRed,
+                    title = "快捷操作",
+                    subtitle = "调课、临时加课、停课",
+                    onClick = { onOpenSub(SubPage.Quick) }
+                )
+                GroupRow(
+                    icon = Icons.Default.AccessTime,
+                    tileColor = TileBlue,
+                    title = "调课操作",
+                    subtitle = "将指定日期的课程调到另一日期",
+                    onClick = { onOpenSub(SubPage.Quick) }
+                )
+            }
+
+            GroupLabel("外观")
+            GroupCard {
+                GroupRow(
+                    icon = Icons.Default.Palette,
+                    tileColor = TilePurple,
+                    title = "液态玻璃",
+                    subtitle = if (global.liquidGlass) "开启：卡片带模糊与折射" else "关闭：使用半透明纯色卡片",
+                    trailing = {
+                        PillSwitch(
+                            checked = global.liquidGlass,
+                            onCheckedChange = { on ->
+                                Repo.update { s -> s.copy(settings = s.settings.copy(liquidGlass = on)) }
+                            }
+                        )
+                    }
+                )
+                GroupRow(
+                    icon = Icons.Default.DarkMode,
+                    tileColor = TileOrange,
+                    title = "主题",
+                    subtitle = when (global.themeMode) {
+                        1 -> "浅色"
+                        2 -> "暗色"
+                        else -> "跟随系统"
+                    },
+                    onClick = { showThemeSheet = true }
+                )
+                GroupRow(
+                    icon = Icons.Default.Image,
+                    tileColor = TileGreen,
+                    title = "背景图",
+                    subtitle = if (settings.backgroundPath != null) "已设置（点击更换）" else "未设置",
+                    onClick = { pickImage.launch("image/*") },
+                    trailing = {
+                        if (settings.backgroundPath != null) {
+                            TextButton(onClick = {
+                                Repo.updateSettings { s -> s.copy(backgroundPath = null) }
+                            }) { Text("清除") }
+                        }
+                    }
+                )
+            }
 
             androidx.compose.foundation.layout.Spacer(Modifier.padding(bottom = 32.dp))
         }
@@ -345,29 +353,74 @@ fun SettingsScreen(onBack: () -> Unit, onOpenSub: (SubPage) -> Unit) {
     }
 
     if (showThemeSheet) {
-        ModalBottomSheet(onDismissRequest = { showThemeSheet = false }) {
-            Column(Modifier.padding(bottom = 32.dp)) {
+        val darkDialog = MaterialTheme.colorScheme.surface.luminance() < 0.5f
+        val dialogBg = if (darkDialog) Color(0xFF1E1B21) else MaterialTheme.colorScheme.surface
+        val optionBg = if (darkDialog) Color(0xFF2D2A31) else Color(0xFFF1ECF0)
+        val selectedBg = Color(0xFFA8C7FA)
+        val selectedFg = Color(0xFF0A305F)
+        Dialog(
+            onDismissRequest = { showThemeSheet = false },
+            properties = DialogProperties(usePlatformDefaultWidth = false)
+        ) {
+            Column(
+                Modifier
+                    .fillMaxWidth()
+                    .padding(horizontal = 28.dp)
+                    .clip(RoundedCornerShape(28.dp))
+                    .background(dialogBg)
+                    .padding(horizontal = 20.dp, vertical = 24.dp)
+            ) {
                 Text(
                     "主题",
-                    style = MaterialTheme.typography.titleMedium,
-                    modifier = Modifier.padding(horizontal = 20.dp, vertical = 8.dp)
+                    style = MaterialTheme.typography.titleLarge,
+                    fontWeight = FontWeight.Bold,
+                    color = MaterialTheme.colorScheme.onSurface
                 )
-                listOf(1 to "浅色", 2 to "深色", 0 to "跟随系统").forEach { (value, label) ->
-                    Row(
-                        verticalAlignment = Alignment.CenterVertically,
-                        modifier = Modifier
+                Spacer(Modifier.height(10.dp))
+                Text(
+                    "更改主题会保留当前背景设置。",
+                    style = MaterialTheme.typography.bodyMedium,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant
+                )
+                Spacer(Modifier.height(20.dp))
+                listOf(0 to "跟随系统", 1 to "浅色", 2 to "暗色").forEach { (value, label) ->
+                    val selected = global.themeMode == value
+                    Box(
+                        Modifier
                             .fillMaxWidth()
+                            .clip(RoundedCornerShape(22.dp))
+                            .background(if (selected) selectedBg else optionBg)
                             .clickable {
                                 Repo.update { s -> s.copy(settings = s.settings.copy(themeMode = value)) }
-                                showThemeSheet = false
                             }
-                            .padding(horizontal = 20.dp, vertical = 10.dp)
+                            .padding(vertical = 14.dp),
+                        contentAlignment = Alignment.Center
                     ) {
-                        Text(label, Modifier.weight(1f))
-                        if (global.themeMode == value) {
-                            Icon(Icons.Default.Check, null, tint = MaterialTheme.colorScheme.primary)
-                        }
+                        Text(
+                            if (selected) "$label · 已选择" else label,
+                            style = MaterialTheme.typography.bodyLarge,
+                            fontWeight = FontWeight.Medium,
+                            color = if (selected) selectedFg else MaterialTheme.colorScheme.onSurface
+                        )
                     }
+                    Spacer(Modifier.height(10.dp))
+                }
+                Spacer(Modifier.height(2.dp))
+                Box(
+                    Modifier
+                        .fillMaxWidth()
+                        .clip(RoundedCornerShape(22.dp))
+                        .background(optionBg)
+                        .clickable { showThemeSheet = false }
+                        .padding(vertical = 14.dp),
+                    contentAlignment = Alignment.Center
+                ) {
+                    Text(
+                        "完成",
+                        style = MaterialTheme.typography.bodyLarge,
+                        fontWeight = FontWeight.Medium,
+                        color = MaterialTheme.colorScheme.onSurface
+                    )
                 }
             }
         }

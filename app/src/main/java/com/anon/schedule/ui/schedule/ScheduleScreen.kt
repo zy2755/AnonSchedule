@@ -116,6 +116,13 @@ import com.anon.schedule.data.ShownCourse
 import com.anon.schedule.data.TableBean
 import com.anon.schedule.data.TimeSlot
 import com.anon.schedule.data.tableSettings
+import com.anon.schedule.ui.common.GroupCard
+import com.anon.schedule.ui.common.GroupLabel
+import com.anon.schedule.ui.common.GroupRow
+import com.anon.schedule.ui.common.TileBlue
+import com.anon.schedule.ui.common.TileGreen
+import com.anon.schedule.ui.common.TileOrange
+import com.anon.schedule.ui.common.TilePurple
 import com.anon.schedule.ui.common.courseColor
 import com.anon.schedule.ui.theme.LocalGlass
 import kotlinx.coroutines.delay
@@ -1295,33 +1302,30 @@ fun MoreSheet(onDismiss: () -> Unit, onOpenSub: (SubPage) -> Unit) {
             Modifier
                 .fillMaxWidth()
                 .verticalScroll(rememberScrollState())
-                .padding(horizontal = 20.dp)
                 .padding(bottom = 36.dp)
         ) {
             // ---------- 周数 ----------
-            Row(verticalAlignment = Alignment.CenterVertically) {
-                Text(
-                    "周数",
-                    style = MaterialTheme.typography.titleMedium,
-                    fontWeight = FontWeight.Bold,
-                    modifier = Modifier.weight(1f)
-                )
-                TextButton(onClick = {
-                    weekText = s.currentWeek.toString()
-                    editingWeek = true
-                }) { Text("修改当前周") }
-            }
-            Row(verticalAlignment = Alignment.CenterVertically) {
-                Text(
-                    "第 ${s.currentWeek} 周",
-                    fontWeight = FontWeight.Bold,
-                    modifier = Modifier.width(72.dp)
+            GroupLabel("周数")
+            GroupCard {
+                GroupRow(
+                    icon = Icons.Default.CalendarMonth,
+                    tileColor = TileOrange,
+                    title = "第 ${s.currentWeek} 周",
+                    subtitle = "共 ${s.maxWeek} 周 · 点击可修改",
+                    onClick = {
+                        weekText = s.currentWeek.toString()
+                        editingWeek = true
+                    }
                 )
                 var sliderPos by remember(s.currentWeek, s.maxWeek) {
                     mutableFloatStateOf(s.currentWeek.toFloat())
                 }
                 var dragging by remember { mutableStateOf(false) }
-                BoxWithConstraints(Modifier.weight(1f)) {
+                BoxWithConstraints(
+                    Modifier
+                        .fillMaxWidth()
+                        .padding(start = 14.dp, end = 14.dp, bottom = 8.dp)
+                ) {
                     // 拖动时滑块上方实时弹出当前选中周数的文字标签
                     if (dragging) {
                         val maxW = s.maxWeek.coerceAtLeast(1)
@@ -1370,64 +1374,90 @@ fun MoreSheet(onDismiss: () -> Unit, onOpenSub: (SubPage) -> Unit) {
                             .padding(top = 26.dp)
                     )
                 }
-                Text(
-                    "共 ${s.maxWeek} 周",
-                    style = MaterialTheme.typography.bodySmall,
-                    color = MaterialTheme.colorScheme.onSurfaceVariant
-                )
-            }
-            if (s.startDate == null) {
-                Text(
-                    "未设置开学日期，周数按推算起点计；可在设置里设置开学日期",
-                    style = MaterialTheme.typography.bodySmall,
-                    color = MaterialTheme.colorScheme.onSurfaceVariant
-                )
-            }
-
-            HorizontalDivider(Modifier.padding(vertical = 14.dp))
-
-            // ---------- 课表 ----------
-            Row(verticalAlignment = Alignment.CenterVertically) {
-                Text(
-                    "课表",
-                    style = MaterialTheme.typography.titleMedium,
-                    fontWeight = FontWeight.Bold,
-                    modifier = Modifier.weight(1f)
-                )
-                TextButton(onClick = { addingTable = true }) { Text("新建课表") }
-                TextButton(onClick = { onOpenSub(SubPage.TableManage) }) { Text("管理") }
-            }
-            Row(
-                Modifier
-                    .fillMaxWidth()
-                    .horizontalScroll(rememberScrollState()),
-                horizontalArrangement = Arrangement.spacedBy(10.dp)
-            ) {
-                st.tables.forEach { table ->
-                    TableThumb(
-                        table = table,
-                        selected = table.id == st.currentTableId,
-                        count = st.details.count { it.tableId == table.id },
-                        onSelect = { Repo.update { cur -> cur.copy(currentTableId = table.id) } }
+                if (s.startDate == null) {
+                    Text(
+                        "未设置开学日期，周数按推算起点计；可在设置里设置开学日期",
+                        style = MaterialTheme.typography.bodySmall,
+                        color = MaterialTheme.colorScheme.onSurfaceVariant,
+                        modifier = Modifier.padding(start = 14.dp, end = 14.dp, bottom = 12.dp)
                     )
                 }
             }
 
-            HorizontalDivider(Modifier.padding(vertical = 14.dp))
+            // ---------- 课表 ----------
+            Row(
+                verticalAlignment = Alignment.CenterVertically,
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .padding(start = 26.dp, end = 18.dp, top = 20.dp, bottom = 8.dp)
+            ) {
+                Text(
+                    "课表",
+                    style = MaterialTheme.typography.labelMedium,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.85f),
+                    modifier = Modifier.weight(1f)
+                )
+                Text(
+                    "新建",
+                    style = MaterialTheme.typography.labelLarge,
+                    color = MaterialTheme.colorScheme.primary,
+                    modifier = Modifier
+                        .clickable { addingTable = true }
+                        .padding(vertical = 4.dp, horizontal = 6.dp)
+                )
+                Text(
+                    "管理",
+                    style = MaterialTheme.typography.labelLarge,
+                    color = MaterialTheme.colorScheme.primary,
+                    modifier = Modifier
+                        .clickable { onOpenSub(SubPage.TableManage) }
+                        .padding(vertical = 4.dp, horizontal = 6.dp)
+                )
+            }
+            GroupCard {
+                Row(
+                    Modifier
+                        .fillMaxWidth()
+                        .horizontalScroll(rememberScrollState())
+                        .padding(14.dp),
+                    horizontalArrangement = Arrangement.spacedBy(10.dp)
+                ) {
+                    st.tables.forEach { table ->
+                        TableThumb(
+                            table = table,
+                            selected = table.id == st.currentTableId,
+                            count = st.details.count { it.tableId == table.id },
+                            onSelect = { Repo.update { cur -> cur.copy(currentTableId = table.id) } }
+                        )
+                    }
+                }
+            }
 
             // ---------- 功能 ----------
-            Text("功能", style = MaterialTheme.typography.titleMedium, fontWeight = FontWeight.Bold)
-            Spacer(Modifier.height(10.dp))
-            Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween) {
-                FunctionIcon("上课时间", Icons.Default.AccessTime) { onOpenSub(SubPage.TimeTable) }
-                FunctionIcon("已添课程", Icons.Default.ViewList) { onOpenSub(SubPage.CourseList) }
-                FunctionIcon("课表设置", Icons.Default.Settings) { onOpenSub(SubPage.TableSettings(st.currentTableId)) }
-                FunctionIcon(
-                    label = if (dark) "浅色模式" else "夜间模式",
-                    icon = if (dark) Icons.Default.WbSunny else Icons.Default.NightsStay,
-                    active = dark
+            GroupLabel("功能")
+            GroupCard {
+                Row(
+                    Modifier
+                        .fillMaxWidth()
+                        .padding(horizontal = 8.dp, vertical = 14.dp),
+                    horizontalArrangement = Arrangement.SpaceBetween
                 ) {
-                    Repo.update { s -> s.copy(settings = s.settings.copy(themeMode = if (s.settings.themeMode == 2) 1 else 2)) }
+                    FunctionIcon("上课时间", Icons.Default.AccessTime, TileBlue) {
+                        onOpenSub(SubPage.TimeTable)
+                    }
+                    FunctionIcon("已添课程", Icons.Default.ViewList, TileGreen) {
+                        onOpenSub(SubPage.CourseList)
+                    }
+                    FunctionIcon("课表设置", Icons.Default.Settings, TilePurple) {
+                        onOpenSub(SubPage.TableSettings(st.currentTableId))
+                    }
+                    FunctionIcon(
+                        label = if (dark) "浅色模式" else "夜间模式",
+                        icon = if (dark) Icons.Default.WbSunny else Icons.Default.NightsStay,
+                        tileColor = TileOrange
+                    ) {
+                        Repo.update { s -> s.copy(settings = s.settings.copy(themeMode = if (s.settings.themeMode == 2) 1 else 2)) }
+                    }
                 }
             }
         }
@@ -1527,33 +1557,30 @@ private fun TableThumb(
     }
 }
 
-/** 圆形功能图标 */
+/** 彩色圆角方块功能图标 */
 @Composable
-private fun FunctionIcon(label: String, icon: ImageVector, active: Boolean = false, onClick: () -> Unit) {
+private fun FunctionIcon(label: String, icon: ImageVector, tileColor: Color, onClick: () -> Unit) {
     Column(
         horizontalAlignment = Alignment.CenterHorizontally,
         modifier = Modifier
             .clickable(onClick = onClick)
-            .padding(4.dp)
+            .padding(horizontal = 6.dp, vertical = 2.dp)
     ) {
         Box(
             Modifier
-                .size(48.dp)
-                .clip(RoundedCornerShape(24.dp))
-                .background(
-                    if (active) MaterialTheme.colorScheme.primary.copy(alpha = 0.18f)
-                    else MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.7f)
-                ),
+                .size(46.dp)
+                .clip(RoundedCornerShape(14.dp))
+                .background(tileColor),
             contentAlignment = Alignment.Center
         ) {
             Icon(
                 icon,
                 contentDescription = label,
-                tint = if (active) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.onSurfaceVariant,
-                modifier = Modifier.size(22.dp)
+                tint = Color.White,
+                modifier = Modifier.size(23.dp)
             )
         }
-        Spacer(Modifier.height(4.dp))
+        Spacer(Modifier.height(6.dp))
         Text(
             label,
             fontSize = 11.sp,

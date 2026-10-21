@@ -1,0 +1,5 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!-- 学习通作答页拍照上传：相机把照片写进缓存目录，再以 content:// 交给 WebView -->
+<paths>
+    <cache-path name="cx_camera" path="cx_camera/" />
+</paths>

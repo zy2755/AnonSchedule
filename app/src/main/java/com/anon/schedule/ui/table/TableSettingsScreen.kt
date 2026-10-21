@@ -9,18 +9,12 @@ import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.verticalScroll
-import androidx.compose.material.icons.Icons
-import androidx.compose.material.icons.automirrored.filled.ArrowBack
 import androidx.compose.material3.AlertDialog
-import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.HorizontalDivider
-import androidx.compose.material3.Icon
-import androidx.compose.material3.IconButton
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Scaffold
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
-import androidx.compose.material3.TopAppBar
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
@@ -33,10 +27,10 @@ import androidx.compose.ui.unit.dp
 import com.anon.schedule.data.Repo
 import com.anon.schedule.data.tableSettings
 import com.anon.schedule.ui.common.GlassCard
+import com.anon.schedule.ui.common.PageHeader
 import com.anon.schedule.ui.common.SectionTitle
 
 /** 课表设置：三入口（默认配置弹窗 / 课表数据 / 课表外观），照 WakeUp 图三 */
-@OptIn(ExperimentalMaterial3Api::class)
 @Composable
 fun TableSettingsScreen(
     tableId: Long,
@@ -49,14 +43,7 @@ fun TableSettingsScreen(
 
     Scaffold(
         topBar = {
-            TopAppBar(
-                title = { Text("课表设置") },
-                navigationIcon = {
-                    IconButton(onClick = onBack) {
-                        Icon(Icons.AutoMirrored.Filled.ArrowBack, contentDescription = "返回")
-                    }
-                }
-            )
+            PageHeader("课表设置", onBack = onBack)
         }
     ) { padding ->
         Column(

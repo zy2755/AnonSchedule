@@ -1,6 +1,5 @@
 package com.anon.schedule.ui.mine
 
-import android.webkit.JavascriptInterface
 import android.webkit.WebResourceRequest
 import android.webkit.WebSettings
 import android.webkit.WebView
@@ -18,6 +17,7 @@ import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
+import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.shape.RoundedCornerShape
@@ -27,6 +27,7 @@ import androidx.compose.material.icons.automirrored.filled.ArrowBack
 import androidx.compose.material.icons.filled.Download
 import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.Button
+import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.HorizontalDivider
 import androidx.compose.material3.Icon
@@ -43,6 +44,7 @@ import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
+import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
@@ -55,6 +57,7 @@ import androidx.compose.ui.viewinterop.AndroidView
 import com.anon.schedule.data.GradeBean
 import com.anon.schedule.data.Repo
 import com.anon.schedule.ui.common.GlassCard
+import kotlinx.coroutines.launch
 import org.json.JSONObject
 import java.util.Locale
 
@@ -69,63 +72,9 @@ private val COL_POINT = 52.dp
 private val COL_SCORE = 62.dp
 
 /**
- * 在教务页面里直接请求「学生成绩」JSON 接口（复刻课表导入的候选 URL + 失败自动重试套路）。
- * 各校正方版本的接口路径不一致，这里逐个候选尝试；学年/学期优先读页面上的隐藏输入，读不到按当前日期推算。
+ * 成绩读取改为原生抓取（见 [ZfGradeApi]）：WebView 只负责登录，
+ * 之后用它的 Cookie 直接请求教务接口，按学期循环、自动翻页；空学期不落库、不上标签。
  */
-private const val ZF_GRADE_JS = """
-(function () {
-  function val(id) { var e = document.getElementById(id); return e && e.value ? e.value : ''; }
-  try {
-    var xnm = val('xnm'), xqm = val('xqm'), gnm = val('gnmkdm') || 'N305005';
-    var dt = new Date(), yy = dt.getFullYear(), mm = dt.getMonth() + 1;
-    if (!xnm) { xnm = String(mm >= 9 ? yy : yy - 1); }
-    if (!xqm) { xqm = (mm >= 9 || mm <= 1) ? '3' : (mm <= 7 ? '12' : '16'); }
-    var p = location.pathname || '/';
-    var dir = p.substring(0, p.lastIndexOf('/') + 1);
-    var urls = [];
-    var i = p.indexOf('/jwglxt/');
-    if (i >= 0) {
-      var root = p.substring(0, i) + '/jwglxt/';
-      urls.push(root + 'cjcx/cjcx_cxXsgrcj.html?doType=query&gnmkdm=' + gnm);
-      urls.push(root + 'xscjcx/xscjcx_cxXscj.html?doType=query&gnmkdm=' + gnm);
-    }
-    urls.push(dir + 'cjcx_cxXsgrcj.html?doType=query&gnmkdm=' + gnm);
-    var body = 'xnm=' + encodeURIComponent(xnm) + '&xqm=' + encodeURIComponent(xqm) +
-               '&kcmc=&_search=false&nd=' + Date.now() +
-               '&queryModel.showCount=100&queryModel.currentPage=1' +
-               '&queryModel.sortName=&queryModel.sortOrder=asc&time=0&gnmkdm=' + encodeURIComponent(gnm);
-    var k = 0;
-    function next() {
-      if (k >= urls.length) {
-        try { window.local_obj.showJson('{"error":"接口未返回成绩数据，请先登录并进入「信息查询 → 学生成绩查询」页面再试"}'); } catch (e) {}
-        return;
-      }
-      var xhr = new XMLHttpRequest();
-      xhr.open('POST', urls[k++], true);
-      xhr.setRequestHeader('Content-Type', 'application/x-www-form-urlencoded; charset=UTF-8');
-      xhr.timeout = 15000;
-      xhr.onreadystatechange = function () {
-        if (xhr.readyState !== 4) { return; }
-        var t = xhr.responseText || '';
-        if (xhr.status === 200 && (t.indexOf('"items"') >= 0 || t.indexOf('"list"') >= 0)) {
-          // 返回里常没有学年/学期，补在对象头上，便于 App 按学期归档
-          var o = t.indexOf('{');
-          var wrapped = (o >= 0)
-            ? '{"xnm":"' + xnm + '","xqm":"' + xqm + '",' + t.substring(o + 1)
-            : t;
-          try { window.local_obj.showJson(wrapped); } catch (e) {}
-        } else { next(); }
-      };
-      xhr.ontimeout = next;
-      xhr.onerror = next;
-      try { xhr.send(body); } catch (e) { next(); }
-    }
-    next();
-  } catch (e) {
-    try { window.local_obj.showJson('{"error":"' + e + '"}'); } catch (e2) {}
-  }
-})();
-"""
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
@@ -138,30 +87,8 @@ fun GradesScreen(onBack: () -> Unit) {
     var url by remember { mutableStateOf(ZF_LOGIN_URL) }
     var status by remember { mutableStateOf("请在下方页面登录教务系统，登录成功后点「读取成绩」") }
     var webView by remember { mutableStateOf<WebView?>(null) }
-
-    // JS 桥：读取成功后落库并切到表格视图
-    val bridge = remember {
-        object {
-            @JavascriptInterface
-            fun showJson(json: String) {
-                val result = runCatching { parseZfGrades(json) }.getOrElse { emptyList() }
-                val msg = try {
-                    JSONObject(json).optString("error")
-                } catch (e: Exception) {
-                    ""
-                }
-                when {
-                    msg.isNotEmpty() -> status = msg
-                    result.isEmpty() -> status = "没有读到成绩，请先进入「信息查询 → 学生成绩查询」页面再点「读取成绩」"
-                    else -> {
-                        importGrades(result)
-                        status = "读取成功！共 ${result.size} 条成绩，えら〜い！"
-                        showLogin = false
-                    }
-                }
-            }
-        }
-    }
+    var loading by remember { mutableStateOf(false) }
+    val scope = rememberCoroutineScope()
 
     Scaffold(
         topBar = {
@@ -220,7 +147,6 @@ fun GradesScreen(onBack: () -> Unit) {
                                     request: WebResourceRequest?
                                 ): Boolean = false
                             }
-                            addJavascriptInterface(bridge, "local_obj")
                             loadUrl(ZF_LOGIN_URL)
                             webView = this
                         }
@@ -229,15 +155,39 @@ fun GradesScreen(onBack: () -> Unit) {
 
                 Button(
                     onClick = {
-                        status = "正在向教务读取成绩…"
-                        webView?.evaluateJavascript(ZF_GRADE_JS, null)
+                        if (loading) return@Button
+                        loading = true
+                        status = "正在读取成绩…"
+                        scope.launch {
+                            try {
+                                val list = ZfGradeApi.fetchAll(url) { status = it }
+                                importGrades(list)
+                                val termCount = list.map { it.xnm to it.xqm }.distinct().size
+                                status = "读取成功！共 $termCount 个学期 / ${list.size} 条成绩，えら〜い！"
+                                showLogin = false
+                            } catch (e: Exception) {
+                                status = e.message ?: "读取失败，请稍后重试"
+                            } finally {
+                                loading = false
+                            }
+                        }
                     },
+                    enabled = !loading,
                     modifier = Modifier
                         .fillMaxWidth()
                         .padding(vertical = 8.dp)
                 ) {
-                    Icon(Icons.Default.Download, contentDescription = null)
-                    Text("读取成绩", modifier = Modifier.padding(start = 6.dp))
+                    if (loading) {
+                        CircularProgressIndicator(
+                            modifier = Modifier.size(18.dp),
+                            strokeWidth = 2.dp,
+                            color = MaterialTheme.colorScheme.onPrimary
+                        )
+                        Text("读取中…", modifier = Modifier.padding(start = 8.dp))
+                    } else {
+                        Icon(Icons.Default.Download, contentDescription = null)
+                        Text("读取成绩", modifier = Modifier.padding(start = 6.dp))
+                    }
                 }
             }
         } else {
@@ -440,7 +390,7 @@ private fun GradeTable(list: List<GradeBean>) {
                 .fillMaxWidth()
                 .clip(RoundedCornerShape(10.dp))
                 .background(headBg)
-                .padding(vertical = 9.dp),
+                .padding(horizontal = 12.dp, vertical = 9.dp),
             verticalAlignment = Alignment.CenterVertically
         ) {
             HeadCell("科目", Modifier.weight(1f), TextAlign.Start)
@@ -523,7 +473,8 @@ private fun GradeTableRow(g: GradeBean, onClick: () -> Unit) {
         Modifier
             .fillMaxWidth()
             .clickable(onClick = onClick)
-            .padding(vertical = 11.dp),
+            // 与表头同样的左右内边距，保证列对齐、粉色表头左右都有留白
+            .padding(horizontal = 12.dp, vertical = 11.dp),
         verticalAlignment = Alignment.CenterVertically
     ) {
         Text(

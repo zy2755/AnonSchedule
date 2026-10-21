@@ -9,3 +9,11 @@ captures/
 local.properties
 *.hprof
 .DS_Store
+
+# 安装包（走 GitHub Releases 分发，不进版本库）
+*.apk
+*.aab
+
+# 签名材料
+*.jks
+*.keystore

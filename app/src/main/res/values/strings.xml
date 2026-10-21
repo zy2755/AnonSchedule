@@ -1,0 +1,10 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <string name="app_name">课程表</string>
+    <string name="widget_small_label">今日课程 · 2×2</string>
+    <string name="widget_large_label">今日课程 · 2×4</string>
+    <string name="widget_wide_label">今日课程 · 4×2</string>
+    <string name="widget_mt_label">今日 · 明日</string>
+    <string name="widget_desc">在桌面显示今天的课程安排</string>
+    <string name="widget_mt_desc">左侧今日课程、右侧明日课程，可横向拉伸</string>
+</resources>

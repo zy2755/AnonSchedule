@@ -1,0 +1,13 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <!-- 小组件配色（深色模式） -->
+    <color name="widget_bg">#221920</color>
+    <color name="widget_chip">#2F242B</color>
+    <color name="widget_text">#F3E4EA</color>
+    <color name="widget_text_dim">#E2C7D1</color>
+    <!-- 课程色卡片上的文字：卡片底色是浅色课程色，深色模式同样用深色字 -->
+    <color name="widget_card_text">#2B2227</color>
+    <color name="widget_card_dim">#5A4149</color>
+    <!-- 今日/明日两列之间的分隔线 -->
+    <color name="widget_divider">#3A2E35</color>
+</resources>

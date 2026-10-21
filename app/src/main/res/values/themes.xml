@@ -1,0 +1,8 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <!-- 启动窗口/闪屏底色：默认用深色，避免"白屏一闪再变深色"；浅色用户由 MainActivity 动态改回浅色 -->
+    <style name="Theme.CourseTable" parent="@android:style/Theme.Material.NoActionBar">
+        <item name="android:windowBackground">#FF1A1216</item>
+        <item name="android:statusBarColor">@android:color/transparent</item>
+    </style>
+</resources>

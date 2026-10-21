@@ -17,3 +17,6 @@ local.properties
 # 签名材料
 *.jks
 *.keystore
+*.idsig
+keystore/
+keystore.properties

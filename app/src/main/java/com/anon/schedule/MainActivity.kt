@@ -149,6 +149,9 @@ private const val FROST_SCALE = 6f
 /** 拖选胶囊吸附弹簧：接近临界阻尼，吸附快且几乎不过冲 */
 private val CAPSULE_SPRING = spring<Float>(dampingRatio = 0.9f, stiffness = 500f)
 
+/** 桌面长按「添加小部件」快捷方式带进来的标记（对应 res/xml/shortcuts.xml 里的 extra） */
+private const val EXTRA_ADD_WIDGET = "com.anon.schedule.extra.ADD_WIDGET"
+
 /** 全屏二级页面（栈式导航，可多层叠加） */
 sealed class SubPage {
     data object Settings : SubPage()
@@ -182,6 +185,8 @@ class MainActivity : ComponentActivity() {
             else -> sysDark
         }
         window.setBackgroundDrawable(ColorDrawable(if (dark) 0xFF1A1216.toInt() else 0xFFFDF7FA.toInt()))
+        // 从桌面快捷方式进来：进课表页后直接弹出「添加小部件」
+        val fromWidgetShortcut = intent?.getStringExtra(EXTRA_ADD_WIDGET) == "1"
         setContent {
             val st by Repo.state.collectAsState()
             val hasBackground = st.tableSettings().backgroundPath != null
@@ -193,7 +198,7 @@ class MainActivity : ComponentActivity() {
                     LocalHasBackground provides hasBackground,
                     LocalBackdrop provides if (st.settings.liquidGlass) glassBackdrop else null
                 ) {
-                    AppRoot(glassBackdrop)
+                    AppRoot(glassBackdrop, fromWidgetShortcut)
                 }
             }
         }
@@ -208,9 +213,11 @@ class MainActivity : ComponentActivity() {
 }
 
 @Composable
-fun AppRoot(backdrop: LayerBackdrop) {
+fun AppRoot(backdrop: LayerBackdrop, addWidgetShortcut: Boolean = false) {
     val st by Repo.state.collectAsState()
     val liquidGlass = st.settings.liquidGlass
+    // 快捷方式请求：交给课表页弹一次「添加小部件」，弹完就清掉
+    var widgetDialogRequest by remember { mutableStateOf(addWidgetShortcut) }
 
     // 背景图（按当前课表）
     val bgPath = st.tableSettings().backgroundPath
@@ -335,7 +342,9 @@ fun AppRoot(backdrop: LayerBackdrop) {
                         ScheduleScreen(
                             onImportZf = { push(SubPage.ImportZf) },
                             onImportCsv = { push(SubPage.ImportCsv) },
-                            onOpenSub = { push(it) }
+                            onOpenSub = { push(it) },
+                            showWidgetDialog = widgetDialogRequest,
+                            onWidgetDialogShown = { widgetDialogRequest = false }
                         )
                     }
                     TabSlot(sub == null && tab == 2) {

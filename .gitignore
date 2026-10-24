@@ -20,3 +20,6 @@ local.properties
 *.idsig
 keystore/
 keystore.properties
+
+# 本地备份（历史改动快照，不进版本库）
+.backup/

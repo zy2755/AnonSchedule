@@ -1,0 +1,19 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!-- 桌面长按图标弹出的快捷方式 -->
+<shortcuts xmlns:android="http://schemas.android.com/apk/res/android">
+    <shortcut
+        android:enabled="true"
+        android:icon="@drawable/ic_launcher"
+        android:shortcutId="add_widget"
+        android:shortcutLongLabel="@string/shortcut_add_widget_long"
+        android:shortcutShortLabel="@string/shortcut_add_widget_short">
+        <intent
+            android:action="android.intent.action.MAIN"
+            android:targetClass="com.anon.schedule.MainActivity"
+            android:targetPackage="com.anon.schedule">
+            <extra
+                android:name="com.anon.schedule.extra.ADD_WIDGET"
+                android:value="1" />
+        </intent>
+    </shortcut>
+</shortcuts>

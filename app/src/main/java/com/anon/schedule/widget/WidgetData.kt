@@ -44,7 +44,7 @@ object WidgetData {
     /** 指定某天的课程：与「今日课表」页口径一致（只取本周、按节次排序） */
     fun day(st: AppState, date: LocalDate): List<WidgetCourse> {
         val week = Repo.weekOf(st, date) ?: st.tableSettings().currentWeek
-        return Repo.dayCourses(st, date, week)
+        return Repo.displayDayCourses(st, date, week)
             .filterNot { it.isOther }
             .sortedBy { it.detail.startNode }
             .map { shown ->

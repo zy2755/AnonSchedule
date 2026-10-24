@@ -1,5 +1,9 @@
 package com.anon.schedule.ui.schedule
 
+import android.appwidget.AppWidgetManager
+import android.content.ComponentName
+import android.content.Context
+import android.content.Intent
 import android.widget.Toast
 import androidx.compose.animation.AnimatedVisibility
 import androidx.compose.animation.core.tween
@@ -51,6 +55,8 @@ import androidx.compose.material.icons.filled.Place
 import androidx.compose.material.icons.filled.Settings
 import androidx.compose.material.icons.filled.ViewList
 import androidx.compose.material.icons.filled.WbSunny
+import androidx.compose.material.icons.filled.Share
+import androidx.compose.material.icons.filled.Widgets
 import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.DropdownMenu
 import androidx.compose.material3.DropdownMenuItem
@@ -120,11 +126,19 @@ import com.anon.schedule.ui.common.GroupCard
 import com.anon.schedule.ui.common.GroupLabel
 import com.anon.schedule.ui.common.GroupRow
 import com.anon.schedule.ui.common.TileBlue
+import com.anon.schedule.ui.common.TileCyan
 import com.anon.schedule.ui.common.TileGreen
 import com.anon.schedule.ui.common.TileOrange
+import com.anon.schedule.ui.common.TilePink
 import com.anon.schedule.ui.common.TilePurple
+import com.anon.schedule.ui.common.ThinDivider
 import com.anon.schedule.ui.common.courseColor
 import com.anon.schedule.ui.theme.LocalGlass
+import com.anon.schedule.widget.TodayLargeWidget
+import com.anon.schedule.widget.TodaySmallWidget
+import com.anon.schedule.widget.TodayTomorrowWidget
+import com.anon.schedule.widget.TodayWideWidget
+import java.time.format.DateTimeFormatter
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.flow.collect
 import kotlinx.coroutines.flow.first
@@ -163,13 +177,24 @@ fun ScheduleScreen(
     onImportZf: () -> Unit,
     onImportCsv: () -> Unit,
     onOpenSub: (SubPage) -> Unit,
-    onScrollBusy: (Boolean) -> Unit = {}
+    onScrollBusy: (Boolean) -> Unit = {},
+    showWidgetDialog: Boolean = false,
+    onWidgetDialogShown: () -> Unit = {}
 ) {
     val st by Repo.state.collectAsState()
     var detail by remember { mutableStateOf<ShownCourse?>(null) }
     var showMore by remember { mutableStateOf(false) }
     var showImportMenu by remember { mutableStateOf(false) }
     var deleteTarget by remember { mutableStateOf<ShownCourse?>(null) }
+    var addingWidget by remember { mutableStateOf(false) }
+
+    // 桌面长按图标 →「添加小部件」快捷方式进来：直接弹出选择框，不用先开菜单面板
+    LaunchedEffect(showWidgetDialog) {
+        if (showWidgetDialog) {
+            addingWidget = true
+            onWidgetDialogShown()
+        }
+    }
     // 三击空白格加课：记录 周/星期/起始节次
     var addAt by remember { mutableStateOf<Triple<Int, Int, Int>?>(null) }
 
@@ -334,7 +359,32 @@ fun ScheduleScreen(
     if (showMore) {
         MoreSheet(
             onDismiss = { showMore = false },
-            onOpenSub = { showMore = false; onOpenSub(it) }
+            onOpenSub = { showMore = false; onOpenSub(it) },
+            onAddWidget = { showMore = false; addingWidget = true }
+        )
+    }
+
+    if (addingWidget) {
+        AlertDialog(
+            onDismissRequest = { addingWidget = false },
+            title = { Text("添加小部件") },
+            text = {
+                Column {
+                    Text(
+                        "点一下想要的尺寸，确认后就会加到桌面",
+                        style = MaterialTheme.typography.bodySmall,
+                        color = MaterialTheme.colorScheme.onSurfaceVariant
+                    )
+                    Spacer(Modifier.height(8.dp))
+                    WidgetPinRow("今日课程 · 2×2", TodaySmallWidget::class.java) { addingWidget = false }
+                    WidgetPinRow("今日课程 · 2×4", TodayLargeWidget::class.java) { addingWidget = false }
+                    WidgetPinRow("今日课程 · 4×2", TodayWideWidget::class.java) { addingWidget = false }
+                    WidgetPinRow("今日 · 明日", TodayTomorrowWidget::class.java) { addingWidget = false }
+                }
+            },
+            confirmButton = {
+                TextButton(onClick = { addingWidget = false }) { Text("关闭") }
+            }
         )
     }
 
@@ -1285,9 +1335,14 @@ private fun DetailRow(icon: ImageVector, title: String, value: String) {
 /** 右上角「更多」面板：周数 / 课表 / 功能宫格 */
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
-fun MoreSheet(onDismiss: () -> Unit, onOpenSub: (SubPage) -> Unit) {
+fun MoreSheet(
+    onDismiss: () -> Unit,
+    onOpenSub: (SubPage) -> Unit,
+    onAddWidget: () -> Unit
+) {
     val st by Repo.state.collectAsState()
     val s = st.tableSettings()
+    val ctx = LocalContext.current
     var addingTable by remember { mutableStateOf(false) }
     var newTableName by remember { mutableStateOf("") }
     var editingWeek by remember { mutableStateOf(false) }
@@ -1459,6 +1514,22 @@ fun MoreSheet(onDismiss: () -> Unit, onOpenSub: (SubPage) -> Unit) {
                         Repo.update { s -> s.copy(settings = s.settings.copy(themeMode = if (s.settings.themeMode == 2) 1 else 2)) }
                     }
                 }
+                ThinDivider()
+                GroupRow(
+                    icon = Icons.Default.Widgets,
+                    tileColor = TilePink,
+                    title = "添加小部件",
+                    subtitle = "把今日课程放到桌面",
+                    onClick = onAddWidget
+                )
+                ThinDivider()
+                GroupRow(
+                    icon = Icons.Default.Share,
+                    tileColor = TileCyan,
+                    title = "分享课表",
+                    subtitle = "把本周课表整理成文字发给同学",
+                    onClick = { onDismiss(); shareTimetable(ctx, st, s.currentWeek) }
+                )
             }
         }
     }
@@ -1553,6 +1624,88 @@ private fun TableThumb(
             "$count 门课",
             style = MaterialTheme.typography.bodySmall,
             color = MaterialTheme.colorScheme.onSurfaceVariant
+        )
+    }
+}
+
+/** 把某一周的课表整理成一段文字，走系统分享面板发出去 */
+private fun shareTimetable(ctx: Context, st: AppState, week: Int) {
+    val tableId = st.currentTableId
+    val tableName = st.tables.firstOrNull { it.id == tableId }?.name ?: "我的课表"
+    val dayNames = listOf("周一", "周二", "周三", "周四", "周五", "周六", "周日")
+    val fmt = DateTimeFormatter.ofPattern("M.d")
+    val sb = StringBuilder("📚 $tableName · 第 $week 周")
+
+    val first = Repo.dateOfWeekDay(st, week, 1, tableId)
+    val last = Repo.dateOfWeekDay(st, week, 7, tableId)
+    if (first != null && last != null) sb.append("（${first.format(fmt)} - ${last.format(fmt)}）")
+    sb.append('\n')
+
+    var total = 0
+    for (day in 1..7) {
+        val date = Repo.dateOfWeekDay(st, week, day, tableId) ?: continue
+        val courses = Repo.dayCourses(st, date, week, tableId).sortedBy { it.detail.startNode }
+        if (courses.isEmpty()) continue
+        total += courses.size
+        sb.append('\n').append(dayNames[day - 1]).append('\n')
+        for (sc in courses) {
+            val start = st.slots.getOrNull(sc.detail.startNode - 1)?.start.orEmpty()
+            val end = st.slots.getOrNull(sc.detail.startNode + sc.detail.step - 2)?.end.orEmpty()
+            sb.append("  ")
+            if (start.isNotEmpty()) sb.append(start).append('-').append(end).append(' ')
+            sb.append(sc.course.name)
+            if (sc.detail.room.isNotEmpty()) sb.append(" @").append(sc.detail.room)
+            if (sc.detail.teacher.isNotEmpty()) sb.append(' ').append(sc.detail.teacher)
+            sb.append('\n')
+        }
+    }
+    if (total == 0) sb.append("\n本周没有课程安排\n")
+
+    val intent = Intent(Intent.ACTION_SEND).apply {
+        type = "text/plain"
+        putExtra(Intent.EXTRA_SUBJECT, "$tableName 第 $week 周课表")
+        putExtra(Intent.EXTRA_TEXT, sb.toString())
+    }
+    ctx.startActivity(Intent.createChooser(intent, "分享课表"))
+}
+
+/**
+ * 一键把小部件挂到桌面：系统 / 桌面支持时弹添加确认，不支持就给出手动添加的路径。
+ * 四款小组件在 AndroidManifest 里都是 exported 的 receiver，直接按 ComponentName 请求即可。
+ */
+@Composable
+private fun WidgetPinRow(title: String, provider: Class<*>, onDone: () -> Unit) {
+    val ctx = LocalContext.current
+    Row(
+        verticalAlignment = Alignment.CenterVertically,
+        modifier = Modifier
+            .fillMaxWidth()
+            .clip(RoundedCornerShape(12.dp))
+            .clickable {
+                val mgr = AppWidgetManager.getInstance(ctx)
+                val ok = mgr.isRequestPinAppWidgetSupported &&
+                    mgr.requestPinAppWidget(ComponentName(ctx, provider), null, null)
+                onDone()
+                // 部分国产桌面（如 MIUI）会接受请求但不弹确认，统一给一条手动添加的兜底提示
+                Toast.makeText(
+                    ctx,
+                    if (ok) "已发送添加请求，请在桌面确认；若没有反应，长按桌面空白处 → 小部件 → 选择「今日课程」"
+                    else "当前桌面不支持一键添加，请长按桌面空白处 → 小部件 → 选择「今日课程」",
+                    Toast.LENGTH_LONG
+                ).show()
+            }
+            .padding(horizontal = 4.dp, vertical = 11.dp)
+    ) {
+        Text(
+            title,
+            style = MaterialTheme.typography.bodyLarge,
+            modifier = Modifier.weight(1f)
+        )
+        Icon(
+            Icons.Default.Add,
+            contentDescription = null,
+            tint = MaterialTheme.colorScheme.primary,
+            modifier = Modifier.size(18.dp)
         )
     }
 }

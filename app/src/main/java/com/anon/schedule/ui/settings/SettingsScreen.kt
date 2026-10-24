@@ -1,6 +1,7 @@
 package com.anon.schedule.ui.settings
 
 import android.app.Application
+import android.widget.Toast
 import androidx.activity.compose.rememberLauncherForActivityResult
 import androidx.activity.result.contract.ActivityResultContracts
 import androidx.compose.foundation.background
@@ -18,6 +19,7 @@ import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.AccessTime
+import androidx.compose.material.icons.filled.Backup
 import androidx.compose.material.icons.filled.CalendarMonth
 import androidx.compose.material.icons.filled.DarkMode
 import androidx.compose.material.icons.filled.DateRange
@@ -90,6 +92,7 @@ fun SettingsScreen(onBack: () -> Unit, onOpenSub: (SubPage) -> Unit) {
     var showCurrentWeek by remember { mutableStateOf(false) }
     var showStartDay by remember { mutableStateOf(false) }
     var showThemeSheet by remember { mutableStateOf(false) }
+    var showBackup by remember { mutableStateOf(false) }
 
     val dateFormatter = remember { DateTimeFormatter.ofPattern("yyyy年M月d日") }
 
@@ -103,6 +106,81 @@ fun SettingsScreen(onBack: () -> Unit, onOpenSub: (SubPage) -> Unit) {
                 Repo.updateSettings { s -> s.copy(backgroundPath = file.absolutePath) }
             }
         }
+    }
+
+    // 备份/恢复：交给系统文件选择器，导出到任意位置、从任意位置读回来
+    val exportBackup = rememberLauncherForActivityResult(
+        ActivityResultContracts.CreateDocument("application/json")
+    ) { uri ->
+        if (uri == null) return@rememberLauncherForActivityResult
+        val result = runCatching {
+            context.contentResolver.openOutputStream(uri)?.use { os ->
+                os.write(Repo.exportJson().toByteArray())
+            } ?: error("无法写入所选文件")
+        }
+        Toast.makeText(
+            context,
+            if (result.isSuccess) "已导出备份文件" else "导出失败：${result.exceptionOrNull()?.message}",
+            Toast.LENGTH_LONG
+        ).show()
+    }
+
+    val importBackup = rememberLauncherForActivityResult(
+        ActivityResultContracts.OpenDocument()
+    ) { uri ->
+        if (uri == null) return@rememberLauncherForActivityResult
+        val text = runCatching {
+            context.contentResolver.openInputStream(uri)?.bufferedReader()?.use { it.readText() }
+        }.getOrNull()
+        val result = if (text == null) Result.failure<Unit>(IllegalStateException("读取文件失败"))
+        else Repo.restoreJson(text)
+        Toast.makeText(
+            context,
+            result.fold({ "导入成功，已恢复全部数据" }, { e ->
+                // 解析类异常是英文原文，对用户没意义，换成一句能看懂的话；
+                // 自己抛的中文原因（读取文件失败 / 没有课表数据）原样展示
+                val detail = e.message.orEmpty()
+                val friendly = if (detail.none { it in '\u4e00'..'\u9fa5' }) "这不是有效的课表备份文件" else detail
+                "导入失败：$friendly"
+            }),
+            Toast.LENGTH_LONG
+        ).show()
+    }
+
+    if (showBackup) {
+        AlertDialog(
+            onDismissRequest = { showBackup = false },
+            title = { Text("备份与恢复") },
+            text = {
+                Column {
+                    Text(
+                        "把课表、课程、设置和成绩一起导出成一个 JSON 文件；导入会覆盖当前全部数据。",
+                        style = MaterialTheme.typography.bodySmall,
+                        color = MaterialTheme.colorScheme.onSurfaceVariant
+                    )
+                    Spacer(Modifier.height(6.dp))
+                    TextButton(
+                        onClick = {
+                            showBackup = false
+                            exportBackup.launch(
+                                "课表备份_" + LocalDate.now().format(DateTimeFormatter.ofPattern("yyyyMMdd")) + ".json"
+                            )
+                        },
+                        modifier = Modifier.fillMaxWidth()
+                    ) { Text("导出到文件") }
+                    TextButton(
+                        onClick = {
+                            showBackup = false
+                            importBackup.launch(arrayOf("application/json", "text/plain", "application/octet-stream"))
+                        },
+                        modifier = Modifier.fillMaxWidth()
+                    ) { Text("从文件导入") }
+                }
+            },
+            confirmButton = {
+                TextButton(onClick = { showBackup = false }) { Text("取消") }
+            }
+        )
     }
 
     Scaffold(
@@ -197,6 +275,13 @@ fun SettingsScreen(onBack: () -> Unit, onOpenSub: (SubPage) -> Unit) {
                     title = "调课操作",
                     subtitle = "将指定日期的课程调到另一日期",
                     onClick = { onOpenSub(SubPage.Quick) }
+                )
+                GroupRow(
+                    icon = Icons.Default.Backup,
+                    tileColor = TileCyan,
+                    title = "备份与恢复",
+                    subtitle = "导出全部设置为文件，或从文件恢复",
+                    onClick = { showBackup = true }
                 )
             }
 

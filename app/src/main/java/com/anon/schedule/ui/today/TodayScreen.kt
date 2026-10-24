@@ -49,7 +49,7 @@ fun TodayScreen() {
     val today = LocalDate.now()
     val week = Repo.weekOf(st, today) ?: s.currentWeek
     // 今日课表只展示本周课程：过滤掉非本周（isOther）的卡片
-    val items = Repo.dayCourses(st, today, week)
+    val items = Repo.displayDayCourses(st, today, week)
         .filterNot { it.isOther }
         .sortedBy { it.detail.startNode }
     val formatter = DateTimeFormatter.ofPattern("M月d日")

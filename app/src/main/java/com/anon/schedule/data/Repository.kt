@@ -93,6 +93,21 @@ object Repo {
         save()
     }
 
+    /** 导出：把当前全部数据（课表、课程、设置、成绩）转成一个 JSON 文本 */
+    fun exportJson(): String = json.encodeToString(AppState.serializer(), _state.value)
+
+    /**
+     * 导入：整体替换当前数据。
+     * 解析失败或文件里根本没有课表时直接报错，不会把现有数据清空。
+     */
+    fun restoreJson(text: String): Result<Unit> = runCatching {
+        val decoded = json.decodeFromString(AppState.serializer(), text)
+        require(decoded.tables.isNotEmpty()) { "备份文件里没有课表数据" }
+        _state.value = repairIds(decoded)
+        ensureStartDate()
+        save()
+    }
+
     /** 修改某课表的配置：没有独立配置时先从默认配置拷一份再改 */
     fun updateSettings(
         tableId: Long = _state.value.currentTableId,
@@ -269,6 +284,30 @@ object Repo {
         }
 
         return shown
+    }
+
+    /**
+     * 展示用的一天课程：在 [dayCourses] 基础上按课表网格的叠放规则去掉被覆盖的原课——
+     * 调课/加课卡优先占位，同一节次上的当天原课不再展示（撤销变动后自动恢复）。
+     * 「今日课表」页与桌面小组件都用这个口径，避免网格里已隐藏的课还出现在别处。
+     */
+    fun displayDayCourses(st: AppState, date: LocalDate, week: Int, tableId: Long = st.currentTableId): List<ShownCourse> {
+        val list = dayCourses(st, date, week, tableId)
+        val used = HashSet<Int>()
+        for (item in list) {
+            if (item.record == null || item.isOther) continue
+            val d = item.detail
+            if (d.startNode < 1) continue
+            for (n in d.startNode until d.startNode + d.step.coerceAtLeast(1)) used.add(n)
+        }
+        if (used.isEmpty()) return list
+        return list.filter { item ->
+            if (item.record != null || item.isOther) true
+            else {
+                val d = item.detail
+                d.startNode < 1 || (d.startNode until d.startNode + d.step.coerceAtLeast(1)).none { it in used }
+            }
+        }
     }
 }
 

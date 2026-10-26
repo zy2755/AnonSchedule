@@ -377,9 +377,9 @@ fun ScheduleScreen(
                     )
                     Spacer(Modifier.height(8.dp))
                     WidgetPinRow("今日课程 · 2×2", TodaySmallWidget::class.java) { addingWidget = false }
-                    WidgetPinRow("今日课程 · 2×4", TodayLargeWidget::class.java) { addingWidget = false }
+                    WidgetPinRow("今日课程 · 4×4", TodayLargeWidget::class.java) { addingWidget = false }
                     WidgetPinRow("今日课程 · 4×2", TodayWideWidget::class.java) { addingWidget = false }
-                    WidgetPinRow("今日 · 明日", TodayTomorrowWidget::class.java) { addingWidget = false }
+                    WidgetPinRow("今日 · 明日 · 4×4", TodayTomorrowWidget::class.java) { addingWidget = false }
                 }
             },
             confirmButton = {
@@ -1683,14 +1683,16 @@ private fun WidgetPinRow(title: String, provider: Class<*>, onDone: () -> Unit) 
             .clip(RoundedCornerShape(12.dp))
             .clickable {
                 val mgr = AppWidgetManager.getInstance(ctx)
-                val ok = mgr.isRequestPinAppWidgetSupported &&
+                // 部分桌面（MIUI / 澎湃OS）会误报「不支持」但实际能加，所以不再拦在 isRequestPinAppWidgetSupported 上，
+                // 统一尝试请求，按返回值给提示
+                val ok = runCatching {
                     mgr.requestPinAppWidget(ComponentName(ctx, provider), null, null)
+                }.getOrDefault(false)
                 onDone()
-                // 部分国产桌面（如 MIUI）会接受请求但不弹确认，统一给一条手动添加的兜底提示
                 Toast.makeText(
                     ctx,
-                    if (ok) "已发送添加请求，请在桌面确认；若没有反应，长按桌面空白处 → 小部件 → 选择「今日课程」"
-                    else "当前桌面不支持一键添加，请长按桌面空白处 → 小部件 → 选择「今日课程」",
+                    if (ok) "已发送添加请求；桌面没反应就长按桌面空白处 → 小部件 → 安卓小部件 → 今日课程"
+                    else "当前桌面不支持一键添加，请长按桌面空白处 → 小部件 → 安卓小部件 → 今日课程",
                     Toast.LENGTH_LONG
                 ).show()
             }

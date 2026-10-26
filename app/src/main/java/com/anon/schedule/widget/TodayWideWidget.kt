@@ -72,7 +72,7 @@ class TodayWideWidget : AppWidgetProvider() {
                 views.removeAllViews(R.id.widget_cards)
                 remain.forEach { views.addView(R.id.widget_cards, card(ctx, it)) }
             }
-            views.setOnClickPendingIntent(R.id.widget_root, widgetLaunchIntent(ctx))
+            views.setOnClickPendingIntent(android.R.id.background, widgetLaunchIntent(ctx))
             return views
         }
 

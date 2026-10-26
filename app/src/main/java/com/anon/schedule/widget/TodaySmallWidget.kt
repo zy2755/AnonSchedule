@@ -65,7 +65,7 @@ class TodaySmallWidget : AppWidgetProvider() {
                     views.setInt(R.id.widget_accent, "setBackgroundColor", cur.colorArgb)
                 }
             }
-            views.setOnClickPendingIntent(R.id.widget_root, widgetLaunchIntent(ctx))
+            views.setOnClickPendingIntent(android.R.id.background, widgetLaunchIntent(ctx))
             return views
         }
 
@@ -74,7 +74,7 @@ class TodaySmallWidget : AppWidgetProvider() {
     }
 }
 
-/** 点击小组件打开 App（2×2 与 2×4 共用同一份 PendingIntent） */
+/** 点击小组件打开 App（4 个小组件共用同一份 PendingIntent） */
 internal fun widgetLaunchIntent(ctx: Context): PendingIntent {
     val intent = Intent(ctx, MainActivity::class.java).apply {
         flags = Intent.FLAG_ACTIVITY_NEW_TASK or Intent.FLAG_ACTIVITY_CLEAR_TOP

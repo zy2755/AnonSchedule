@@ -14,9 +14,9 @@ import java.time.LocalDate
 import java.time.format.DateTimeFormatter
 
 /**
- * 桌面小组件 · 今日 · 明日（可横向 / 纵向拉伸）
- * 左边一列展示今天的课、右边一列展示明天的课；缩窄到放不下两列时自动隐藏「明天」列；
- * 纵向拉高时每列能显示的行数会跟着变多，把没显示完的课也露出来。
+ * 桌面小组件 · 今日 · 明日（4×4）
+ * 左边一列展示今天的课、右边一列展示明天的课；宽度不够时自动隐藏「明天」列；
+ * 高度变大时每列能显示的行数会跟着变多，把没显示完的课也露出来。
  */
 class TodayTomorrowWidget : AppWidgetProvider() {
 
@@ -83,7 +83,7 @@ class TodayTomorrowWidget : AppWidgetProvider() {
 
             views.setViewVisibility(R.id.mt_divider, if (wide) View.VISIBLE else View.GONE)
             views.setViewVisibility(R.id.mt_tomorrow_col, if (wide) View.VISIBLE else View.GONE)
-            views.setOnClickPendingIntent(R.id.mt_root, widgetLaunchIntent(ctx))
+            views.setOnClickPendingIntent(android.R.id.background, widgetLaunchIntent(ctx))
             return views
         }
 

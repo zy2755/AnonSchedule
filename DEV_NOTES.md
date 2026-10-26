@@ -72,3 +72,24 @@ R8 开启后无崩溃，界面渲染与 debug 一致。
 
 - `temp_20261018_03` 下的四份备份（nightmode / startup / glass / release）尚未删除，待确认稳定后清理。
 - 如需进一步压缩冷启动，可补 Baseline Profile（本次未做）。
+
+## 2026-10-24 桌面小组件（小米小部件验证与结论）
+
+结论：**个人开发者上不了 MIUI 小部件中心**——小米开发者账号只收企业 / 政府事业单位 / 港澳台及其他组织，且小部件要求 App 先在应用商店过审（应用商店同样不接受个人开发者）。当前维持 Android 原生小部件形态，`miuiWidget` 系列标识已全部撤回。
+
+### 小米小部件规范的几个硬点（将来有企业主体时按此还原）
+
+- 每个 widget receiver 加 `miuiWidget=true`，application 下加 `miuiWidgetVersion`（整数，改动必须递增）。
+- receiver（含 RemoteViewsService）必须 `android:process=":widgetProvider"`，进程内存 < 35MB（实测 21.7MB）。
+- 布局根节点必须是 `@android:id/background`，背景不能全透明，圆角由系统加（Kotlin 点击引用要改成 `android.R.id.background`）。
+- MIUI 会去掉系统定时刷新；要刷新就声明 `miuiWidgetRefresh=exposure` + `miuiWidgetRefreshMinInterval`（毫秒，最短 10 秒），刷新广播是 `miui.appwidget.action.APPWIDGET_UPDATE`，`AppWidgetProvider` 默认不认这个 action，必须自己 `onReceive` 转发。
+- 只支持 2×2 / 4×2 / 4×4 三种尺寸，`targetCellWidth/Height` 与 `minWidth/minHeight` 要按此对齐。
+
+### 踩过的坑
+
+1. **`miuiWidget=true` 会让卡片在审核通过前从小米桌面「安卓小部件」里消失**（HyperOS 4 实测，重启桌面后依旧）。也就是说提审期间谁都加不了新卡片，已放置的实例不受影响。日常自用/开发调试时要撤掉这个标识。
+2. **画廊预览用的是 `previewImage`（PNG），不是 `previewLayout`**。只写 `previewLayout` 时小米画廊里显示的是应用图标。预览图用实机截图裁出来即可（见 `res/drawable-nodpi/widget_preview_*.png`）。
+3. `AppWidgetManager.requestPinAppWidget()` 在 HyperOS 4 上会被桌面拒绝（`AddItemUi, setup_widget abort: permission denied`），即使授予 `INSTALL_SHORTCUT` / `INSTALL_WIDGET` 也一样；官方说明详情页只展示通过审核的小部件，所以本地未上架时失败属预期。
+4. **桌面编辑态下 `uiautomator dump` 基本拿不到层级**（只返回约 1.8KB 空壳），`input draganddrop` 在「安卓小部件」画廊里只会滚动列表。想批量摆放卡片只能人工拖。
+5. 排查命令：`adb shell dumpsys appwidget`（看 provider 注册与 min 尺寸，单位是 dp×256）、`adb shell dumpsys meminfo com.<pkg>:widgetProvider`（看进程 PSS）。
+

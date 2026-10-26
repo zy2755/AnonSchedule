@@ -93,12 +93,14 @@ import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import com.anon.schedule.data.Repo
 import com.anon.schedule.data.tableSettings
+import com.anon.schedule.notify.ClassReminder
 import com.anon.schedule.ui.course.EditCourseScreen
 import com.anon.schedule.ui.importer.ImportCsvScreen
 import com.anon.schedule.ui.importer.ImportZfScreen
 import com.anon.schedule.ui.mine.ChaoxingScreen
 import com.anon.schedule.ui.mine.GradesScreen
 import com.anon.schedule.ui.mine.MineScreen
+import com.anon.schedule.ui.mine.UBangScreen
 import com.anon.schedule.ui.mine.UpdateLogScreen
 import com.anon.schedule.ui.schedule.ScheduleScreen
 import com.anon.schedule.ui.settings.CourseListScreen
@@ -162,6 +164,7 @@ sealed class SubPage {
     data object ImportZf : SubPage()
     data object ImportCsv : SubPage()
     data object Grades : SubPage()
+    data object UBang : SubPage()
     data object Chaoxing : SubPage()
     data object UpdateLog : SubPage()
     data object TableManage : SubPage()
@@ -176,6 +179,8 @@ class MainActivity : ComponentActivity() {
         enableEdgeToEdge()
         // 同步读完本地数据：首帧就能用上持久化的主题，避免"先浅色默认主题、再切深色"的闪一下
         Repo.init(applicationContext)
+        // 课程/设置变动后重排上课提醒（进程被杀或错过开机广播时也靠这里补）
+        ClassReminder.scheduleAll(applicationContext)
         // 清单里窗口/闪屏底色默认写成了深色（防白屏）；浅色用户在这里改回浅色，让启动窗口和主题一致
         val sysDark = (resources.configuration.uiMode and Configuration.UI_MODE_NIGHT_MASK) ==
                 Configuration.UI_MODE_NIGHT_YES
@@ -209,6 +214,8 @@ class MainActivity : ComponentActivity() {
         Repo.flush()
         // 数据落盘后顺手把桌面小组件刷新一遍，保证退出 App 后小部件是最新的
         Widgets.refreshAll(applicationContext)
+        // 课表可能刚被改过：按最新数据重排上课提醒
+        ClassReminder.scheduleAll(applicationContext)
     }
 }
 
@@ -351,6 +358,7 @@ fun AppRoot(backdrop: LayerBackdrop, addWidgetShortcut: Boolean = false) {
                         MineScreen(
                             onSettings = { push(SubPage.Settings) },
                             onGrades = { push(SubPage.Grades) },
+                            onUBang = { push(SubPage.UBang) },
                             onChaoxing = { push(SubPage.Chaoxing) },
                             onUpdateLog = { push(SubPage.UpdateLog) }
                         )
@@ -374,6 +382,7 @@ fun AppRoot(backdrop: LayerBackdrop, addWidgetShortcut: Boolean = false) {
                         SubPage.ImportZf -> ImportZfScreen(onBack = { pop() })
                         SubPage.ImportCsv -> ImportCsvScreen(onBack = { pop() })
                         SubPage.Grades -> GradesScreen(onBack = { pop() })
+                        SubPage.UBang -> UBangScreen(onBack = { pop() })
                         SubPage.Chaoxing -> ChaoxingScreen(onBack = { pop() })
                         SubPage.UpdateLog -> UpdateLogScreen(onBack = { pop() })
                         SubPage.TableManage -> TableManageScreen(
@@ -670,24 +679,28 @@ private fun GlassPillNav(
             )
         }
         // 4. 跟随手指的径向高光（液滴受光点）
-        Box(
-            Modifier
-                .matchParentSize()
-                .glassGlow(motion, params)
-        )
-        // 5. 方向高光 + 描边（高光层独立，避免被折射扭曲）
-        Box(
-            Modifier
-                .matchParentSize()
-                .glassSpecular(params)
-                .border(
-                    width = 1.dp,
-                    brush = Brush.verticalGradient(
-                        listOf(Color.White.copy(alpha = 0.40f), Color.White.copy(alpha = 0.08f))
-                    ),
-                    shape = shape
-                )
-        )
+        // 高光/描边只在液态玻璃开启时画：关闭时药丸要是纯色实心底栏，
+        // 否则夜间模式下的白色描边 + 光泽会被当成「玻璃没关掉」
+        if (glass) {
+            Box(
+                Modifier
+                    .matchParentSize()
+                    .glassGlow(motion, params)
+            )
+            // 5. 方向高光 + 描边（高光层独立，避免被折射扭曲）
+            Box(
+                Modifier
+                    .matchParentSize()
+                    .glassSpecular(params)
+                    .border(
+                        width = 1.dp,
+                        brush = Brush.verticalGradient(
+                            listOf(Color.White.copy(alpha = 0.40f), Color.White.copy(alpha = 0.08f))
+                        ),
+                        shape = shape
+                    )
+            )
+        }
         // 6. 内容（撑起药丸尺寸，其余层 matchParentSize 跟随）
         Row(
             modifier = Modifier

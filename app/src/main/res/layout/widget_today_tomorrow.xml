@@ -1,7 +1,7 @@
 <?xml version="1.0" encoding="utf-8"?>
-<!-- 今日·明日（可拉伸）：顶部一行标题，下面左右两列（今天 / 明天） -->
+<!-- 4×4 今日·明日：顶部一行标题，下面左右两列（今天 / 明天） -->
 <LinearLayout xmlns:android="http://schemas.android.com/apk/res/android"
-    android:id="@+id/mt_root"
+    android:id="@android:id/background"
     android:layout_width="match_parent"
     android:layout_height="match_parent"
     android:background="@drawable/widget_bg"

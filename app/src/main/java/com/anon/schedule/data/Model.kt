@@ -108,7 +108,10 @@ data class Settings(
     // ---- 主题 / 背景 ----
     val themeMode: Int = 0,              // 0=跟随系统 1=浅色 2=深色
     val liquidGlass: Boolean = false,    // 液态玻璃
-    val backgroundPath: String? = null   // 背景图
+    val backgroundPath: String? = null,  // 背景图
+    // ---- 提醒 ----
+    val reminderEnabled: Boolean = false,   // 上课前提醒
+    val reminderLeadMinutes: Int = 10       // 提前多少分钟提醒
 )
 
 @Serializable

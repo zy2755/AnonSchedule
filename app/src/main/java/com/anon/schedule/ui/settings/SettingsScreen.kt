@@ -1,5 +1,6 @@
 package com.anon.schedule.ui.settings
 
+import android.Manifest
 import android.app.Application
 import android.widget.Toast
 import androidx.activity.compose.rememberLauncherForActivityResult
@@ -26,8 +27,10 @@ import androidx.compose.material.icons.filled.DateRange
 import androidx.compose.material.icons.filled.Image
 import androidx.compose.material.icons.filled.Layers
 import androidx.compose.material.icons.filled.Loop
+import androidx.compose.material.icons.filled.NotificationsActive
 import androidx.compose.material.icons.filled.Palette
 import androidx.compose.material.icons.filled.Speed
+import androidx.compose.material.icons.filled.Timer
 import androidx.compose.material.icons.filled.Today
 import androidx.compose.material.icons.filled.Tune
 import androidx.compose.material.icons.filled.ViewWeek
@@ -60,6 +63,7 @@ import androidx.compose.ui.window.DialogProperties
 import com.anon.schedule.SubPage
 import com.anon.schedule.data.Repo
 import com.anon.schedule.data.tableSettings
+import com.anon.schedule.notify.ClassReminder
 import com.anon.schedule.ui.common.GroupCard
 import com.anon.schedule.ui.common.GroupLabel
 import com.anon.schedule.ui.common.GroupRow
@@ -93,6 +97,13 @@ fun SettingsScreen(onBack: () -> Unit, onOpenSub: (SubPage) -> Unit) {
     var showStartDay by remember { mutableStateOf(false) }
     var showThemeSheet by remember { mutableStateOf(false) }
     var showBackup by remember { mutableStateOf(false) }
+    var showLeadPicker by remember { mutableStateOf(false) }
+    var showExactAlarmHint by remember { mutableStateOf(false) }
+
+    // 打开提醒时先要通知权限（Android 13+ 必须运行时申请）
+    val notifPermission = rememberLauncherForActivityResult(
+        ActivityResultContracts.RequestPermission()
+    ) { }
 
     val dateFormatter = remember { DateTimeFormatter.ofPattern("yyyy年M月d日") }
 
@@ -285,6 +296,44 @@ fun SettingsScreen(onBack: () -> Unit, onOpenSub: (SubPage) -> Unit) {
                 )
             }
 
+            GroupLabel("提醒")
+            GroupCard {
+                GroupRow(
+                    icon = Icons.Default.NotificationsActive,
+                    tileColor = TilePink,
+                    title = "上课前提醒",
+                    subtitle = if (settings.reminderEnabled)
+                        "每节课前 ${settings.reminderLeadMinutes} 分钟通知一次"
+                    else "关闭时不发送任何通知",
+                    trailing = {
+                        PillSwitch(
+                            checked = settings.reminderEnabled,
+                            onCheckedChange = { on ->
+                                Repo.updateSettings { s -> s.copy(reminderEnabled = on) }
+                                if (on) {
+                                    if (!ClassReminder.canPostNotifications(context)) {
+                                        notifPermission.launch(Manifest.permission.POST_NOTIFICATIONS)
+                                    }
+                                    ClassReminder.scheduleAll(context)
+                                    if (!ClassReminder.canScheduleExact(context)) showExactAlarmHint = true
+                                } else {
+                                    ClassReminder.cancelAll(context)
+                                }
+                            }
+                        )
+                    }
+                )
+                if (settings.reminderEnabled) {
+                    GroupRow(
+                        icon = Icons.Default.Timer,
+                        tileColor = TileOrange,
+                        title = "提前时间",
+                        subtitle = "上课前 ${settings.reminderLeadMinutes} 分钟",
+                        onClick = { showLeadPicker = true }
+                    )
+                }
+            }
+
             GroupLabel("外观")
             GroupCard {
                 GroupRow(
@@ -433,6 +482,62 @@ fun SettingsScreen(onBack: () -> Unit, onOpenSub: (SubPage) -> Unit) {
             },
             confirmButton = {
                 TextButton(onClick = { showStartDay = false }) { Text("关闭") }
+            }
+        )
+    }
+
+    if (showLeadPicker) {
+        AlertDialog(
+            onDismissRequest = { showLeadPicker = false },
+            title = { Text("提前时间") },
+            text = {
+                Column {
+                    ClassReminder.LEAD_OPTIONS.forEach { minutes ->
+                        Row(
+                            verticalAlignment = Alignment.CenterVertically,
+                            modifier = Modifier
+                                .fillMaxWidth()
+                                .clickable {
+                                    Repo.updateSettings { s -> s.copy(reminderLeadMinutes = minutes) }
+                                    ClassReminder.scheduleAll(context)
+                                    showLeadPicker = false
+                                }
+                                .padding(vertical = 6.dp)
+                        ) {
+                            RadioButton(
+                                selected = settings.reminderLeadMinutes == minutes,
+                                onClick = {
+                                    Repo.updateSettings { s -> s.copy(reminderLeadMinutes = minutes) }
+                                    ClassReminder.scheduleAll(context)
+                                    showLeadPicker = false
+                                }
+                            )
+                            Text("$minutes 分钟")
+                        }
+                    }
+                }
+            },
+            confirmButton = {
+                TextButton(onClick = { showLeadPicker = false }) { Text("关闭") }
+            }
+        )
+    }
+
+    if (showExactAlarmHint) {
+        AlertDialog(
+            onDismissRequest = { showExactAlarmHint = false },
+            title = { Text("需要「闹钟和提醒」权限") },
+            text = {
+                Text("系统还没授予精确闹钟权限，提醒可能会晚几分钟。去设置里允许后就能准时弹出。")
+            },
+            confirmButton = {
+                TextButton(onClick = {
+                    showExactAlarmHint = false
+                    ClassReminder.requestExactAlarmPermission(context)
+                }) { Text("去授权") }
+            },
+            dismissButton = {
+                TextButton(onClick = { showExactAlarmHint = false }) { Text("稍后") }
             }
         )
     }

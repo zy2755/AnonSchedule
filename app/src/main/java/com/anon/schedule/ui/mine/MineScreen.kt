@@ -16,6 +16,7 @@ import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.filled.Bathtub
 import androidx.compose.material.icons.filled.ChevronRight
 import androidx.compose.material.icons.filled.History
 import androidx.compose.material.icons.filled.List
@@ -52,6 +53,7 @@ import kotlinx.coroutines.launch
 fun MineScreen(
     onSettings: () -> Unit,
     onGrades: () -> Unit,
+    onUBang: () -> Unit,
     onChaoxing: () -> Unit,
     onUpdateLog: () -> Unit
 ) {
@@ -116,6 +118,27 @@ fun MineScreen(
                 Icon(Icons.Default.School, contentDescription = null, tint = MaterialTheme.colorScheme.primary)
                 Text(
                     "成绩查询",
+                    style = MaterialTheme.typography.bodyLarge,
+                    modifier = Modifier
+                        .weight(1f)
+                        .padding(start = 12.dp)
+                )
+                Icon(Icons.Default.ChevronRight, contentDescription = null, tint = MaterialTheme.colorScheme.onSurfaceVariant)
+            }
+        }
+
+        SectionTitle("澡堂")
+        GlassCard(
+            modifier = Modifier.fillMaxWidth(),
+            onClick = onUBang
+        ) {
+            Row(
+                verticalAlignment = Alignment.CenterVertically,
+                modifier = Modifier.fillMaxWidth()
+            ) {
+                Icon(Icons.Default.Bathtub, contentDescription = null, tint = MaterialTheme.colorScheme.primary)
+                Text(
+                    "澡堂空位 / 账户余额",
                     style = MaterialTheme.typography.bodyLarge,
                     modifier = Modifier
                         .weight(1f)

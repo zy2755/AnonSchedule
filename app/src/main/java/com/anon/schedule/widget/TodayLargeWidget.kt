@@ -14,7 +14,7 @@ import com.anon.schedule.data.tableSettings
 import java.time.LocalDate
 import java.time.format.DateTimeFormatter
 
-/** 桌面小组件 · 今日课程（2×4）：可滚动的今日课程列表 */
+/** 桌面小组件 · 今日课程（4×4）：可滚动的今日课程列表 */
 class TodayLargeWidget : AppWidgetProvider() {
 
     override fun onUpdate(context: Context, mgr: AppWidgetManager, ids: IntArray) {
@@ -52,7 +52,7 @@ class TodayLargeWidget : AppWidgetProvider() {
             views.setRemoteAdapter(R.id.widget_list, Intent(ctx, TodayLargeService::class.java))
             views.setEmptyView(R.id.widget_list, R.id.widget_empty)
             views.setPendingIntentTemplate(R.id.widget_list, widgetLaunchIntent(ctx))
-            views.setOnClickPendingIntent(R.id.widget_root, widgetLaunchIntent(ctx))
+            views.setOnClickPendingIntent(android.R.id.background, widgetLaunchIntent(ctx))
             return views
         }
     }

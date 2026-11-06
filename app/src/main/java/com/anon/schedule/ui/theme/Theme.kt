@@ -12,9 +12,11 @@ import androidx.compose.runtime.Composable
 import androidx.compose.runtime.CompositionLocalProvider
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableFloatStateOf
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
+import androidx.compose.runtime.State
 import androidx.compose.runtime.staticCompositionLocalOf
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.lerp
@@ -22,17 +24,44 @@ import androidx.compose.ui.graphics.lerp
 /** 是否启用液态玻璃（透出底层背景的半透明质感） */
 val LocalGlass = staticCompositionLocalOf { false }
 
-/** 「我的」页调出的卡片背景不透明度（0.4~1.0），所有卡片共用 */
-val LocalCardAlpha = staticCompositionLocalOf { 1f }
+/**
+ * 卡片不透明度的「实时预览值」：拖动滑块时只改这个 snapshot state。
+ * 千万不要写 Repo.state —— 那会 copy 整个 AppState，让 setContent 与 AppRoot 两处
+ * collectAsState 全树重组（连常驻的课表网格都每帧重画），实测会明显掉帧。
+ * 松手后由 MineScreen 提交到 Repo 防抖落盘。
+ */
+val CardAlphaPreview = mutableFloatStateOf(1f)
+
+/**
+ * 高频变化的值必须传 State、不传 Float：provider 的 value 永远是同一个对象，
+ * 拖动时 provider 和所有卡片都不进入 composition 重组，
+ * 只有 draw 阶段读 .value 的那层矩形重绘（Compose 官方的 phase 优化）。
+ */
+val LocalCardAlpha = staticCompositionLocalOf<State<Float>> { CardAlphaPreview }
+
+/** 保留独立一层只为语义清晰；它自身不会再因滑块重组 */
+@Composable
+fun CardAlphaProvider(content: @Composable () -> Unit) {
+    CompositionLocalProvider(LocalCardAlpha provides CardAlphaPreview, content = content)
+}
 
 /** 是否设置了背景图：有背景图时卡片需要更「托底」，否则文字会糊在图上看不清 */
 val LocalHasBackground = staticCompositionLocalOf { false }
 
 /**
- * 玻璃采样源：AppRoot 把「背景图 + 遮罩」单独录进一个图层，卡片从这里取像素做折射/模糊。
- * 为 null（未开启液态玻璃 / 低版本）时卡片回退到半透明底色。
+ * 悬浮底栏的毛玻璃采样源：整屏内容（壁纸 + 页面），内容从玻璃下方滚过。
+ * 为 null 表示液态玻璃已关闭。
  */
-val LocalBackdrop = staticCompositionLocalOf<com.kyant.backdrop.Backdrop?> { null }
+val LocalContentHaze = staticCompositionLocalOf<dev.chrisbanes.haze.HazeState?> { null }
+
+/**
+ * 卡片专用采样源：只包「壁纸 + 遮罩」。
+ * 与底栏分开是故意的：共用一个源会让卡片把别的卡片和文字也模糊进去，出现重影。
+ */
+val LocalWallpaperHaze = staticCompositionLocalOf<dev.chrisbanes.haze.HazeState?> { null }
+
+// 玻璃配方由库自带的 LocalHazeStyle 统一提供（MainActivity 里 provide 一份），
+// 底栏和卡片自动共享同一组 blurRadius / tint / noise / fallbackTint。
 
 // 全站黑白化：强调色不再用饱和粉，浅色模式走近黑、深色模式走近白。
 // 粉色调只从品牌层移除；课程色、错误色等「语义色」不受影响。

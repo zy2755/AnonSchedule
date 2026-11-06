@@ -51,6 +51,7 @@ import com.anon.schedule.ui.common.GlassCard
 import com.anon.schedule.ui.common.GradientSlider
 import com.anon.schedule.ui.common.SectionTitle
 import com.anon.schedule.ui.common.cardSecondaryColor
+import com.anon.schedule.ui.theme.CardAlphaPreview
 import kotlinx.coroutines.launch
 import kotlin.math.roundToInt
 
@@ -125,46 +126,7 @@ fun MineScreen(
         }
 
         SectionTitle("外观")
-        GlassCard(modifier = Modifier.fillMaxWidth()) {
-            val settings = st.tableSettings()
-            Row(
-                verticalAlignment = Alignment.CenterVertically,
-                modifier = Modifier
-                    .fillMaxWidth()
-                    .padding(vertical = 4.dp)
-            ) {
-                Column(
-                    modifier = Modifier.weight(1f),
-                    verticalArrangement = Arrangement.spacedBy(3.dp)
-                ) {
-                    Text(
-                        "卡片背景不透明度",
-                        style = MaterialTheme.typography.bodyLarge,
-                        fontWeight = FontWeight.SemiBold
-                    )
-                    Text(
-                        "调低会让卡片更透，露出底下的背景",
-                        style = MaterialTheme.typography.bodySmall.copy(lineHeight = 19.sp),
-                        color = cardSecondaryColor()
-                    )
-                }
-                Text(
-                    "${settings.cardAlphaPercent}%",
-                    style = MaterialTheme.typography.bodyMedium,
-                    fontWeight = FontWeight.Medium,
-                    color = MaterialTheme.colorScheme.primary,
-                    modifier = Modifier.padding(start = 12.dp)
-                )
-            }
-            GradientSlider(
-                value = settings.cardAlphaPercent / 100f,
-                onValueChange = { f ->
-                    Repo.updateSettings { it.copy(cardAlphaPercent = (f * 100).roundToInt().coerceIn(40, 100)) }
-                },
-                valueRange = 0.4f..1f,
-                modifier = Modifier.padding(top = 2.dp)
-            )
-        }
+        CardOpacityRow()
 
         SectionTitle("教务")
         GlassCard(
@@ -422,4 +384,62 @@ private fun plainReleaseNotes(raw: String): String {
                 .replace("`", "")
         }
         .trim()
+}
+
+
+/**
+ * 单独一个 Composable：预览态只在这里订阅。
+ * 放在 MineScreen 顶层会让每次拖动都重组整个「我的」页（十几张卡片 + 列表），
+ * 下沉到这一行后，拖动只重组这一行 + 各卡片里随 alpha 变化的那层底色。
+ */
+@Composable
+private fun CardOpacityRow() {
+    val previewAlpha by CardAlphaPreview
+    GlassCard(modifier = Modifier.fillMaxWidth()) {
+        Row(
+            verticalAlignment = Alignment.CenterVertically,
+            modifier = Modifier
+                .fillMaxWidth()
+                .padding(vertical = 4.dp)
+        ) {
+            Column(
+                modifier = Modifier.weight(1f),
+                verticalArrangement = Arrangement.spacedBy(3.dp)
+            ) {
+                Text(
+                    "卡片背景不透明度",
+                    style = MaterialTheme.typography.bodyLarge,
+                    fontWeight = FontWeight.SemiBold
+                )
+                Text(
+                    "调低会让卡片更透，露出底下的背景",
+                    style = MaterialTheme.typography.bodySmall.copy(lineHeight = 19.sp),
+                    color = cardSecondaryColor()
+                )
+            }
+            Text(
+                "${(previewAlpha * 100).roundToInt()}%",
+                style = MaterialTheme.typography.bodyMedium,
+                fontWeight = FontWeight.Medium,
+                color = MaterialTheme.colorScheme.primary,
+                modifier = Modifier.padding(start = 12.dp)
+            )
+        }
+        GradientSlider(
+            value = previewAlpha,
+            // 只改轻量预览态：不写 Repo.state，就不会每帧全树重组
+            onValueChange = { f -> CardAlphaPreview.floatValue = f },
+            // 松手才提交一次，走 Repo 的 150ms 防抖落盘
+            onValueChangeFinished = {
+                Repo.updateSettings {
+                    it.copy(
+                        cardAlphaPercent = (CardAlphaPreview.floatValue * 100)
+                            .roundToInt().coerceIn(40, 100)
+                    )
+                }
+            },
+            valueRange = 0.4f..1f,
+            modifier = Modifier.padding(top = 2.dp)
+        )
+    }
 }

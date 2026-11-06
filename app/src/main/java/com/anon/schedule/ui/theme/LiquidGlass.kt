@@ -1,3 +1,11 @@
+/**
+ * 【已停用 · 仅作回退参考】手写液态玻璃（AGSL 边缘折射 + 方向高光 + 跟手光斑 + 弹簧晃动）。
+ *
+ * 2026-11-06 起底栏与卡片统一改用 Haze 1.7.1（见 MainActivity 的 LocalHazeStyle）：
+ * 真高斯模糊 + tint + noise 由库处理，观感更接近 NPatch，且不再需要每 33ms 录一次快照。
+ * 本文件现在没有任何调用方，保留是为了想找回「强折射 + 跟手高光」那版效果时不用重写；
+ * 确认新版稳定后可以整个删除（同时删掉对应的 RuntimeShader / RenderEffect 依赖代码）。
+ */
 package com.anon.schedule.ui.theme
 
 import android.graphics.RuntimeShader

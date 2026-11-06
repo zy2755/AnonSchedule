@@ -17,12 +17,12 @@ val keystoreProps = Properties().apply {
 
 android {
     namespace = "com.anon.schedule"
-    compileSdk = 35
+    compileSdk = 36
 
     defaultConfig {
         applicationId = "com.anon.schedule"
         minSdk = 26
-        targetSdk = 35
+        targetSdk = 36
         versionCode = 5
         versionName = "1.0.4"
     }
@@ -65,6 +65,17 @@ android {
     }
 }
 
+// Haze 1.7.1 把 androidx.activity 整组（atomic group）抬到 1.11.0，
+// 而 1.11.0 要求 AGP 8.9.1+ / compileSdk 36。Haze 源码只用到 ComponentActivity
+// （1.9.2 就有），所以整组钉回工程原版本即可，无需为玻璃升级整条构建链。
+configurations.all {
+    resolutionStrategy.force(
+        "androidx.activity:activity:1.9.2",
+        "androidx.activity:activity-ktx:1.9.2",
+        "androidx.activity:activity-compose:1.9.2",
+    )
+}
+
 dependencies {
     implementation(platform("androidx.compose:compose-bom:2025.11.01"))
     implementation("androidx.core:core-ktx:1.13.1")
@@ -75,6 +86,10 @@ dependencies {
     implementation("androidx.compose.material3:material3")
     implementation("androidx.compose.material:material-icons-extended")
     implementation("org.jetbrains.kotlinx:kotlinx-serialization-json:1.7.3")
-    // 液态玻璃：kyant0 官方 backdrop（模糊 / 边缘折射 / 高光）
-    implementation("io.github.kyant0:backdrop:1.0.1")
+    // 毛玻璃：NPatch 同代的 Haze 1.x（单体库，含 blur）。
+    // 选 1.7.1 而非 2.1.x 的原因：它依赖 Compose 1.9.3 / Kotlin 2.2.21，
+    // 与本工程 BOM 2025.11.01（Compose 1.9.5）/ Kotlin 2.2.21 对齐，不会把
+    // ui 顶到 1.12.x 而反向要求 AGP 9.1 + compileSdk 36。2.x 是模块化新 API，
+    // 等构建链整体升级后再迁移。
+    implementation("dev.chrisbanes.haze:haze:1.7.1")
 }

@@ -340,7 +340,9 @@ fun SettingsScreen(onBack: () -> Unit, onOpenSub: (SubPage) -> Unit) {
                     icon = Icons.Default.Palette,
                     tileColor = TilePurple,
                     title = "液态玻璃",
-                    subtitle = if (global.liquidGlass) "开启：卡片带模糊与折射" else "关闭：使用半透明纯色卡片",
+                    subtitle = if (global.liquidGlass)
+                        "开启：卡片与底栏真模糊，滑块可调玻璃实度"
+                    else "关闭：无模糊纯色卡片，滑块仍可调不透明度",
                     trailing = {
                         PillSwitch(
                             checked = global.liquidGlass,

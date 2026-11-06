@@ -32,6 +32,12 @@ private data class UpdateEntry(val date: String, val items: List<String>)
 /** 更新内容（新的在最上面；以后每次改动往这里追加一条） */
 private val updateEntries = listOf(
     UpdateEntry(
+        date = "2026-11-06",
+        items = listOf(
+            "我的：学习通入口的「实验性功能」提示里注明，现阶段只推荐作为查看作业 / 考试归属使用"
+        )
+    ),
+    UpdateEntry(
         date = "2026-10-26",
         items = listOf(
             "我的：新增「澡堂空位 / 账户余额」，入口放在「教务」与「学习通」之间",

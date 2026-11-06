@@ -43,6 +43,7 @@ import androidx.compose.ui.draw.clip
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
+import androidx.compose.ui.unit.sp
 import com.anon.schedule.data.Repo
 import com.anon.schedule.data.UpdateChecker
 import com.anon.schedule.ui.common.GlassCard
@@ -67,6 +68,7 @@ fun MineScreen(
     }
     var checking by remember { mutableStateOf(false) }
     var updateResult by remember { mutableStateOf<UpdateChecker.Result?>(null) }
+    var showChaoxingTip by remember { mutableStateOf(false) }
 
     Column(
         Modifier
@@ -151,7 +153,7 @@ fun MineScreen(
         SectionTitle("学习通")
         GlassCard(
             modifier = Modifier.fillMaxWidth(),
-            onClick = onChaoxing
+            onClick = { showChaoxingTip = true }
         ) {
             Row(
                 verticalAlignment = Alignment.CenterVertically,
@@ -232,6 +234,31 @@ fun MineScreen(
         }
 
         Spacer(Modifier.height(96.dp))
+    }
+
+    if (showChaoxingTip) {
+        AlertDialog(
+            onDismissRequest = { showChaoxingTip = false },
+            title = { Text("实验性功能") },
+            text = {
+                Text(
+                    "学习通模块还在打磨中，作业与考试的进入、作答、提交可能偶尔出状况，请以学习通 App 里的状态为准。现阶段只推荐作为查看作业 / 考试归属使用。\n\n" +
+                        "遇到问题的话，先回学习通 App 核对一下再提交哦～",
+                    style = MaterialTheme.typography.bodyMedium.copy(lineHeight = 21.sp)
+                )
+            },
+            confirmButton = {
+                TextButton(
+                    onClick = {
+                        showChaoxingTip = false
+                        onChaoxing()
+                    }
+                ) { Text("仍然进入") }
+            },
+            dismissButton = {
+                TextButton(onClick = { showChaoxingTip = false }) { Text("先等等") }
+            }
+        )
     }
 
     updateResult?.let { result ->

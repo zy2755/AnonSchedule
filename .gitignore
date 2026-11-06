@@ -23,3 +23,8 @@ keystore.properties
 
 # 本地备份（历史改动快照，不进版本库）
 .backup/
+
+# 本地临时产物（交接草稿、调试截图、R8 replay 日志），只留在工作区
+HANDOFF_*.md
+/jump.png
+replay_pid*.log

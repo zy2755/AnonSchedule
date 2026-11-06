@@ -1,12 +1,12 @@
 <?xml version="1.0" encoding="utf-8"?>
-<!-- 2×2 今日课程：显示正在上 / 下一节要上的那一节 -->
+<!-- 2×2 今日课程：深色极简，细色线 + 状态、课程名、地点时间 -->
 <LinearLayout xmlns:android="http://schemas.android.com/apk/res/android"
     android:id="@android:id/background"
     android:layout_width="match_parent"
     android:layout_height="match_parent"
     android:background="@drawable/widget_bg"
     android:orientation="vertical"
-    android:padding="10dp">
+    android:padding="14dp">
 
     <LinearLayout
         android:layout_width="match_parent"
@@ -16,29 +16,30 @@
 
         <TextView
             android:id="@+id/widget_accent"
-            android:layout_width="4dp"
-            android:layout_height="14dp"
+            android:layout_width="3dp"
+            android:layout_height="16dp"
+            android:layout_marginEnd="9dp"
             android:background="#FFE8629B" />
 
         <TextView
             android:id="@+id/widget_header"
             android:layout_width="0dp"
             android:layout_height="wrap_content"
-            android:layout_marginStart="6dp"
             android:layout_weight="1"
             android:ellipsize="end"
             android:maxLines="1"
             android:textColor="@color/widget_text_dim"
-            android:textSize="10sp" />
+            android:textSize="11sp" />
     </LinearLayout>
 
     <TextView
         android:id="@+id/widget_name"
         android:layout_width="match_parent"
         android:layout_height="wrap_content"
-        android:layout_marginTop="6dp"
+        android:layout_marginTop="9dp"
         android:ellipsize="end"
         android:maxLines="2"
+        android:lineSpacingExtra="2dp"
         android:textColor="@color/widget_text"
         android:textSize="16sp"
         android:textStyle="bold" />
@@ -47,9 +48,10 @@
         android:id="@+id/widget_sub"
         android:layout_width="match_parent"
         android:layout_height="wrap_content"
-        android:layout_marginTop="4dp"
+        android:layout_marginTop="6dp"
         android:ellipsize="end"
-        android:maxLines="1"
+        android:maxLines="2"
+        android:lineSpacingExtra="2dp"
         android:textColor="@color/widget_text_dim"
         android:textSize="11sp" />
 </LinearLayout>

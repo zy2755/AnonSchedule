@@ -70,7 +70,6 @@ import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.ModalBottomSheet
 import androidx.compose.material3.OutlinedTextField
 import androidx.compose.material3.rememberModalBottomSheetState
-import androidx.compose.material3.Slider
 import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
@@ -122,6 +121,7 @@ import com.anon.schedule.data.ShownCourse
 import com.anon.schedule.data.TableBean
 import com.anon.schedule.data.TimeSlot
 import com.anon.schedule.data.tableSettings
+import com.anon.schedule.ui.common.GradientSlider
 import com.anon.schedule.ui.common.GroupCard
 import com.anon.schedule.ui.common.GroupLabel
 import com.anon.schedule.ui.common.GroupRow
@@ -1410,7 +1410,7 @@ fun MoreSheet(
                         }
                     }
                     // 离散档位滑块：1..maxWeek 逐周吸附
-                    Slider(
+                    GradientSlider(
                         value = sliderPos,
                         onValueChange = {
                             dragging = true

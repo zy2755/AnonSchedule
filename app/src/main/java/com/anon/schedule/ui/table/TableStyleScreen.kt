@@ -28,8 +28,6 @@ import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Scaffold
-import androidx.compose.material3.Slider
-import androidx.compose.material3.Switch
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
 import androidx.compose.material3.TopAppBar
@@ -54,7 +52,9 @@ import androidx.compose.ui.unit.dp
 import com.anon.schedule.data.Repo
 import com.anon.schedule.data.tableSettings
 import com.anon.schedule.ui.common.GlassCard
+import com.anon.schedule.ui.common.GradientSlider
 import com.anon.schedule.ui.common.NumberPickerDialog
+import com.anon.schedule.ui.common.PillSwitch
 import com.anon.schedule.ui.common.SectionTitle
 import com.anon.schedule.ui.common.TextRow
 import com.anon.schedule.ui.common.courseColors
@@ -172,7 +172,7 @@ fun TableStyleScreen(tableId: Long, onBack: () -> Unit) {
                     title = "显示网格辅助线",
                     desc = "颜色跟随标题颜色哦，也就是下面这个选项",
                     trailing = {
-                        Switch(
+                        PillSwitch(
                             checked = s.showGridLines,
                             onCheckedChange = { on -> Repo.updateSettings(tableId) { it.copy(showGridLines = on) } }
                         )
@@ -195,7 +195,7 @@ fun TableStyleScreen(tableId: Long, onBack: () -> Unit) {
                 TextRow(
                     title = "节次栏显示时间",
                     trailing = {
-                        Switch(
+                        PillSwitch(
                             checked = s.showSlotTime,
                             onCheckedChange = { on -> Repo.updateSettings(tableId) { it.copy(showSlotTime = on) } }
                         )
@@ -205,7 +205,7 @@ fun TableStyleScreen(tableId: Long, onBack: () -> Unit) {
                 TextRow(
                     title = "显示周六",
                     trailing = {
-                        Switch(
+                        PillSwitch(
                             checked = s.showSaturday,
                             onCheckedChange = { on -> Repo.updateSettings(tableId) { it.copy(showSaturday = on) } }
                         )
@@ -215,7 +215,7 @@ fun TableStyleScreen(tableId: Long, onBack: () -> Unit) {
                 TextRow(
                     title = "显示周日",
                     trailing = {
-                        Switch(
+                        PillSwitch(
                             checked = s.showSunday,
                             onCheckedChange = { on -> Repo.updateSettings(tableId) { it.copy(showSunday = on) } }
                         )
@@ -225,7 +225,7 @@ fun TableStyleScreen(tableId: Long, onBack: () -> Unit) {
                 TextRow(
                     title = "显示非本周课程",
                     trailing = {
-                        Switch(
+                        PillSwitch(
                             checked = s.showOtherWeek,
                             onCheckedChange = { on -> Repo.updateSettings(tableId) { it.copy(showOtherWeek = on) } }
                         )
@@ -246,7 +246,7 @@ fun TableStyleScreen(tableId: Long, onBack: () -> Unit) {
                     title = "课程文字颜色叠加格子颜色",
                     desc = "文字颜色设为半透明的黑色，效果会更明显哦",
                     trailing = {
-                        Switch(
+                        PillSwitch(
                             checked = s.courseTextOverlay,
                             onCheckedChange = { on -> Repo.updateSettings(tableId) { it.copy(courseTextOverlay = on) } }
                         )
@@ -264,7 +264,7 @@ fun TableStyleScreen(tableId: Long, onBack: () -> Unit) {
                     title = "边框使用格子颜色",
                     desc = "不透明度跟随上面的设置",
                     trailing = {
-                        Switch(
+                        PillSwitch(
                             checked = s.borderUseCellColor,
                             onCheckedChange = { on -> Repo.updateSettings(tableId) { it.copy(borderUseCellColor = on) } }
                         )
@@ -274,7 +274,7 @@ fun TableStyleScreen(tableId: Long, onBack: () -> Unit) {
                 TextRow(
                     title = "格子使用虚线边框",
                     trailing = {
-                        Switch(
+                        PillSwitch(
                             checked = s.borderDashed,
                             onCheckedChange = { on -> Repo.updateSettings(tableId) { it.copy(borderDashed = on) } }
                         )
@@ -314,7 +314,7 @@ fun TableStyleScreen(tableId: Long, onBack: () -> Unit) {
                 TextRow(
                     title = "格子文字水平居中",
                     trailing = {
-                        Switch(
+                        PillSwitch(
                             checked = s.textHorizontalCenter,
                             onCheckedChange = { on -> Repo.updateSettings(tableId) { it.copy(textHorizontalCenter = on) } }
                         )
@@ -324,7 +324,7 @@ fun TableStyleScreen(tableId: Long, onBack: () -> Unit) {
                 TextRow(
                     title = "格子文字竖直居中",
                     trailing = {
-                        Switch(
+                        PillSwitch(
                             checked = s.textVerticalCenter,
                             onCheckedChange = { on -> Repo.updateSettings(tableId) { it.copy(textVerticalCenter = on) } }
                         )
@@ -334,7 +334,7 @@ fun TableStyleScreen(tableId: Long, onBack: () -> Unit) {
                 TextRow(
                     title = "在格子内显示上课时间",
                     trailing = {
-                        Switch(
+                        PillSwitch(
                             checked = s.showTimeInCell,
                             onCheckedChange = { on -> Repo.updateSettings(tableId) { it.copy(showTimeInCell = on) } }
                         )
@@ -344,7 +344,7 @@ fun TableStyleScreen(tableId: Long, onBack: () -> Unit) {
                 TextRow(
                     title = "在格子内显示上课地点",
                     trailing = {
-                        Switch(
+                        PillSwitch(
                             checked = s.showRoomInCell,
                             onCheckedChange = { on -> Repo.updateSettings(tableId) { it.copy(showRoomInCell = on) } }
                         )
@@ -354,7 +354,7 @@ fun TableStyleScreen(tableId: Long, onBack: () -> Unit) {
                 TextRow(
                     title = "在格子内显示授课老师",
                     trailing = {
-                        Switch(
+                        PillSwitch(
                             checked = s.showTeacherInCell,
                             onCheckedChange = { on -> Repo.updateSettings(tableId) { it.copy(showTeacherInCell = on) } }
                         )
@@ -521,7 +521,7 @@ private fun ColorPickerDialog(
                         modifier = Modifier.padding(start = 12.dp)
                     )
                 }
-                Slider(
+                GradientSlider(
                     value = alpha / 255f,
                     onValueChange = { alpha = (it * 255f).roundToInt().coerceIn(0, 255) }
                 )

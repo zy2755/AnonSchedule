@@ -1,7 +1,10 @@
 <?xml version="1.0" encoding="utf-8"?>
-<!-- 小组件背景：圆角卡片色，浅/深色由 values-night 自动切换 -->
+<!-- 小组件背景：浅色白底 / 深色黑底随系统切换，只保留极淡描边 -->
 <shape xmlns:android="http://schemas.android.com/apk/res/android"
     android:shape="rectangle">
     <solid android:color="@color/widget_bg" />
-    <corners android:radius="18dp" />
+    <corners android:radius="22dp" />
+    <stroke
+        android:width="1dp"
+        android:color="@color/widget_bg_stroke" />
 </shape>

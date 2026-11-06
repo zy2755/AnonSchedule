@@ -1,23 +1,35 @@
 package com.anon.schedule.ui.common
 
 import android.os.Build
+import androidx.compose.animation.animateColorAsState
+import androidx.compose.animation.core.animateDpAsState
+import androidx.compose.animation.core.spring
+import androidx.compose.animation.core.tween
+import androidx.compose.foundation.Canvas
 import androidx.compose.foundation.ExperimentalFoundationApi
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.combinedClickable
+import androidx.compose.foundation.gestures.awaitEachGesture
+import androidx.compose.foundation.gestures.awaitFirstDown
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.ColumnScope
+import androidx.compose.foundation.layout.PaddingValues
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.RowScope
 import androidx.compose.foundation.layout.Spacer
+import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
+import androidx.compose.foundation.layout.offset
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
+import androidx.compose.foundation.selection.toggleable
+import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.text.BasicTextField
 import androidx.compose.foundation.text.KeyboardActions
@@ -31,8 +43,6 @@ import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Surface
-import androidx.compose.material3.Switch
-import androidx.compose.material3.SwitchDefaults
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
 import androidx.compose.runtime.Composable
@@ -44,19 +54,33 @@ import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
+import androidx.compose.ui.draw.shadow
 import androidx.compose.ui.focus.FocusRequester
 import androidx.compose.ui.focus.focusRequester
+import androidx.compose.ui.geometry.CornerRadius
+import androidx.compose.ui.geometry.Offset
+import androidx.compose.ui.geometry.Size
 import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.graphics.drawscope.Stroke
 import androidx.compose.ui.graphics.luminance
 import androidx.compose.ui.graphics.vector.ImageVector
+import androidx.compose.ui.input.pointer.pointerInput
+import androidx.compose.ui.layout.onSizeChanged
+import androidx.compose.ui.platform.LocalDensity
+import androidx.compose.ui.semantics.Role
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.input.ImeAction
 import androidx.compose.ui.text.input.KeyboardType
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
+import androidx.compose.runtime.mutableFloatStateOf
+import androidx.compose.runtime.rememberUpdatedState
+import kotlin.math.abs
+import kotlin.math.roundToInt
 import com.anon.schedule.ui.theme.LocalBackdrop
+import com.anon.schedule.ui.theme.LocalCardAlpha
 import com.anon.schedule.ui.theme.LocalGlass
 import com.anon.schedule.ui.theme.LocalHasBackground
 import com.kyant.backdrop.drawBackdrop
@@ -81,6 +105,8 @@ fun courseColor(index: Int): Color = courseColors[((index % courseColors.size) +
 fun GlassCard(
     modifier: Modifier = Modifier,
     onClick: (() -> Unit)? = null,
+    // 列表型卡片（一组可点的行）把上下内边距交给自己，行与卡片边缘的距离才不会被「叠加」成一大块空白
+    contentPadding: PaddingValues = PaddingValues(16.dp),
     content: @Composable ColumnScope.() -> Unit
 ) {
     val glass = LocalGlass.current
@@ -92,13 +118,13 @@ fun GlassCard(
     val darkCard = surfaceColor.luminance() < 0.5f
     // API 31 起 RenderEffect 才成立；更低版本退回原来的半透明底色
     val realGlass = glass && backdrop != null && Build.VERSION.SDK_INT >= 31
-    // 卡片底色不透明度：真玻璃时留得更透（模糊 + 折射透出来），无背景图时也保留通透感
+    // 卡片底色不透明度：有背景图时也要保住文字对比度，模糊和折射交给玻璃层，别指望底色透出来
     val bgAlpha = when {
         !glass -> 1f
-        realGlass -> if (hasBg) 0.62f else 0.50f
+        realGlass -> if (hasBg) 0.85f else 0.50f
         hasBg -> 0.86f
         else -> 0.60f
-    }
+    } * LocalCardAlpha.current
     val bg = surfaceColor.copy(alpha = bgAlpha)
     // 描边：深色卡片用白色高光；浅色卡片改用 outline 灰线，保证「框」在浅底上也看得见
     val borderBrush = if (darkCard) Brush.verticalGradient(
@@ -155,17 +181,22 @@ fun GlassCard(
                     else Modifier.background(brush = Brush.verticalGradient(listOf(bg, bg)), shape = shape)
                 )
                 .then(
-                    if (glass && !realGlass) Modifier
-                        .background(
-                            brush = Brush.verticalGradient(
-                                listOf(Color.White.copy(alpha = 0.10f), Color.Transparent)
-                            ),
-                            shape = shape
-                        )
-                        .border(width = 1.dp, brush = borderBrush, shape = shape)
-                    else Modifier
+                    when {
+                        glass && !realGlass -> Modifier
+                            .background(
+                                brush = Brush.verticalGradient(
+                                    listOf(Color.White.copy(alpha = 0.10f), Color.Transparent)
+                                ),
+                                shape = shape
+                            )
+                            .border(width = 1.dp, brush = borderBrush, shape = shape)
+                        // 深色实心卡片落在纯黑底上，补一条极淡白描边托住边界
+                        !glass && darkCard -> Modifier
+                            .border(width = 1.dp, color = Color.White.copy(alpha = 0.06f), shape = shape)
+                        else -> Modifier
+                    }
                 )
-                .padding(16.dp),
+                .padding(contentPadding),
             content = content
         )
     }
@@ -196,7 +227,7 @@ fun SettingRow(
         modifier = Modifier
             .fillMaxWidth()
             .then(if (onClick != null) Modifier.clickable(onClick = onClick) else Modifier)
-            .padding(horizontal = 20.dp, vertical = 14.dp)
+            .padding(horizontal = 20.dp, vertical = 16.dp)
     ) {
         Icon(
             imageVector = icon,
@@ -208,14 +239,18 @@ fun SettingRow(
             modifier = Modifier
                 .weight(1f)
                 .padding(start = 14.dp),
-            verticalArrangement = Arrangement.spacedBy(2.dp)
+            verticalArrangement = Arrangement.spacedBy(3.dp)
         ) {
-            Text(title, style = MaterialTheme.typography.bodyLarge)
+            Text(
+                title,
+                style = MaterialTheme.typography.bodyLarge,
+                fontWeight = FontWeight.SemiBold
+            )
             if (value != null) {
                 Text(
                     value,
-                    style = MaterialTheme.typography.bodySmall,
-                    color = MaterialTheme.colorScheme.onSurfaceVariant
+                    style = MaterialTheme.typography.bodySmall.copy(lineHeight = 19.sp),
+                    color = cardSecondaryColor()
                 )
             }
         }
@@ -252,7 +287,8 @@ val TileBlue = Color(0xFF4C8DFF)
 val TileGreen = Color(0xFF31C48D)
 val TilePurple = Color(0xFF8B6BF5)
 val TileOrange = Color(0xFFF5A524)
-val TilePink = Color(0xFFE8629B)
+// 原来这里的高饱和粉换成石墨灰：全站黑白化后不再有品牌粉，但彩色图标块仍保留其余色相做区分
+val TilePink = Color(0xFF4A4A52)
 val TileRed = Color(0xFFEF5350)
 val TileCyan = Color(0xFF22B8CF)
 
@@ -277,17 +313,24 @@ fun GroupCard(modifier: Modifier = Modifier, content: @Composable ColumnScope.()
             .fillMaxWidth()
             .padding(horizontal = 16.dp)
             .clip(shape)
+            // 深色模式改纯黑底后卡片要自己「立」起来：实心中性灰 + 极淡白描边
             .background(
-                if (dark) MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.55f)
-                else MaterialTheme.colorScheme.surface
+                (if (dark) MaterialTheme.colorScheme.surfaceVariant
+                else MaterialTheme.colorScheme.surface).copy(alpha = LocalCardAlpha.current)
             )
-            // 浅色底和背景太接近，补一条细描边让卡片边界看得见
             .then(
-                if (dark) Modifier
+                if (dark) Modifier.border(1.dp, Color.White.copy(alpha = 0.07f), shape)
                 else Modifier.border(1.dp, MaterialTheme.colorScheme.outline.copy(alpha = 0.18f), shape)
             ),
         content = content
     )
+}
+
+/** 卡片说明文字颜色：深色模式用 60% 白，浅色模式回落到主题次级色 */
+@Composable
+fun cardSecondaryColor(): Color {
+    val dark = MaterialTheme.colorScheme.surface.luminance() < 0.5f
+    return if (dark) Color.White.copy(alpha = 0.62f) else MaterialTheme.colorScheme.onSurfaceVariant
 }
 
 /** 卡片内一行：彩色圆角图标块 + 标题/副标题 + 尾部件（默认箭头） */
@@ -306,7 +349,7 @@ fun GroupRow(
         modifier = Modifier
             .fillMaxWidth()
             .then(if (onClick != null) Modifier.clickable(onClick = onClick) else Modifier)
-            .padding(horizontal = 14.dp, vertical = 11.dp)
+            .padding(horizontal = 14.dp, vertical = 13.dp)
     ) {
         Box(
             modifier = Modifier
@@ -326,14 +369,19 @@ fun GroupRow(
             modifier = Modifier
                 .weight(1f)
                 .padding(start = 13.dp),
-            verticalArrangement = Arrangement.spacedBy(2.dp)
+            verticalArrangement = Arrangement.spacedBy(3.dp)
         ) {
-            Text(title, style = MaterialTheme.typography.bodyLarge)
+            // 主标题加字重、副标题压到 60% 白并拉大行高：深色底上层次更清楚，也不挤
+            Text(
+                title,
+                style = MaterialTheme.typography.bodyLarge,
+                fontWeight = FontWeight.SemiBold
+            )
             if (subtitle != null) {
                 Text(
                     subtitle,
-                    style = MaterialTheme.typography.bodySmall,
-                    color = MaterialTheme.colorScheme.onSurfaceVariant,
+                    style = MaterialTheme.typography.bodySmall.copy(lineHeight = 19.sp),
+                    color = cardSecondaryColor(),
                     maxLines = 1,
                     overflow = androidx.compose.ui.text.style.TextOverflow.Ellipsis
                 )
@@ -353,21 +401,150 @@ fun GroupRow(
     }
 }
 
-/** iOS 风绿色胶囊开关（参考项目的开关样式） */
+/** iOS 风胶囊开关：轨道更饱满、滑块更大，开启态用更鲜亮的绿色 */
 @Composable
 fun PillSwitch(checked: Boolean, onCheckedChange: (Boolean) -> Unit) {
-    Switch(
-        checked = checked,
-        onCheckedChange = onCheckedChange,
-        colors = SwitchDefaults.colors(
-            checkedThumbColor = Color.White,
-            checkedTrackColor = Color(0xFF34C759),
-            checkedBorderColor = Color.Transparent,
-            uncheckedThumbColor = Color.White,
-            uncheckedTrackColor = MaterialTheme.colorScheme.surfaceVariant,
-            uncheckedBorderColor = Color.Transparent
-        )
+    val dark = MaterialTheme.colorScheme.surface.luminance() < 0.5f
+    val trackOn = if (dark) Color(0xFF32D74B) else Color(0xFF28C76F)
+    val trackOff = if (dark) Color(0xFF3A3A3E) else Color(0xFFE4E4E8)
+    val track by animateColorAsState(
+        targetValue = if (checked) trackOn else trackOff,
+        animationSpec = tween(180),
+        label = "switchTrack"
     )
+    val thumbX by animateDpAsState(
+        targetValue = if (checked) 22.dp else 2.dp,
+        animationSpec = spring(dampingRatio = 0.72f, stiffness = 620f),
+        label = "switchThumb"
+    )
+    val shape = RoundedCornerShape(16.dp)
+    Box(
+        modifier = Modifier
+            .width(52.dp)
+            .height(32.dp)
+            .clip(shape)
+            .background(track)
+            .border(
+                1.dp,
+                if (dark) Color.White.copy(alpha = 0.08f) else Color.Black.copy(alpha = 0.06f),
+                shape
+            )
+            .toggleable(value = checked, role = Role.Switch, onValueChange = onCheckedChange),
+        contentAlignment = Alignment.CenterStart
+    ) {
+        Box(
+            Modifier
+                .offset(x = thumbX)
+                .size(28.dp)
+                .shadow(2.dp, CircleShape)
+                .clip(CircleShape)
+                .background(Color.White)
+        )
+    }
+}
+
+/**
+ * 加粗轨道 + 渐变填充的滑块：未填充部分用明显更深的中性底色，
+ * 填充从品牌色淡到品牌色实，滑块是白色实心 + 品牌色描边。
+ */
+@Composable
+fun GradientSlider(
+    value: Float,
+    onValueChange: (Float) -> Unit,
+    modifier: Modifier = Modifier,
+    valueRange: ClosedFloatingPointRange<Float> = 0f..1f,
+    steps: Int = 0,
+    onValueChangeFinished: (() -> Unit)? = null
+) {
+    val primary = MaterialTheme.colorScheme.primary
+    val dark = MaterialTheme.colorScheme.surface.luminance() < 0.5f
+    // 未填充轨道在深色下是深灰、浅色下是浅灰：和填充渐变有一眼可见的明暗差
+    val trackBase = if (dark) Color(0xFF2A2A2E) else Color(0xFFE4E4E8)
+    val range = valueRange.endInclusive - valueRange.start
+    val fraction = if (range <= 0f) 0f else ((value - valueRange.start) / range).coerceIn(0f, 1f)
+    var widthPx by remember { mutableFloatStateOf(0f) }
+    val padPx = with(LocalDensity.current) { 12.dp.toPx() }
+    val onChange by rememberUpdatedState(onValueChange)
+    val onFinished by rememberUpdatedState(onValueChangeFinished)
+
+    // 有档位时取最近的一档（周数滑块要逐周吸附）
+    fun snap(v: Float): Float {
+        if (steps <= 0 || range <= 0f) return v
+        val segments = steps + 1
+        val f = ((v - valueRange.start) / range).coerceIn(0f, 1f)
+        return valueRange.start + (f * segments).roundToInt() / segments.toFloat() * range
+    }
+
+    fun setFromX(x: Float) {
+        if (widthPx <= 0f) return
+        // 轨道左右各留了一个拇指半径的内缩，触摸换算要减掉，否则贴边拖会差一截
+        val usable = (widthPx - padPx * 2).coerceAtLeast(1f)
+        val f = ((x - padPx) / usable).coerceIn(0f, 1f)
+        onChange(snap(valueRange.start + f * range))
+    }
+
+    Box(
+        modifier = modifier
+            .fillMaxWidth()
+            .height(40.dp)
+            .onSizeChanged { widthPx = it.width.toFloat() }
+            .pointerInput(valueRange, steps) {
+                // 点按和拖动合并成一个手势循环：点哪跳哪，横向移动超过 touchSlop 后连续跟手
+                awaitEachGesture {
+                    val down = awaitFirstDown()
+                    setFromX(down.position.x)
+                    var dragging = false
+                    while (true) {
+                        val change = awaitPointerEvent().changes.firstOrNull { it.pressed } ?: break
+                        if (!dragging && abs(change.position.x - down.position.x) > viewConfiguration.touchSlop) {
+                            dragging = true
+                        }
+                        if (dragging) {
+                            setFromX(change.position.x)
+                            change.consume()
+                        }
+                    }
+                    onFinished?.invoke()
+                }
+            }
+    ) {
+        Canvas(Modifier.fillMaxSize()) {
+            val trackH = 10.dp.toPx()
+            val thumbR = 10.dp.toPx()
+            val cy = size.height / 2f
+            val pad = thumbR + 2.dp.toPx()
+            val trackW = (size.width - 2 * pad).coerceAtLeast(1f)
+            val top = cy - trackH / 2f
+            val corner = CornerRadius(trackH / 2f)
+            drawRoundRect(
+                color = trackBase,
+                topLeft = Offset(pad, top),
+                size = Size(trackW, trackH),
+                cornerRadius = corner
+            )
+            val fillW = (trackW * fraction).coerceAtLeast(if (fraction > 0f) trackH else 0f)
+            if (fillW > 0f) {
+                drawRoundRect(
+                    brush = Brush.horizontalGradient(
+                        colors = listOf(primary.copy(alpha = 0.55f), primary),
+                        startX = pad,
+                        endX = pad + trackW
+                    ),
+                    topLeft = Offset(pad, top),
+                    size = Size(fillW, trackH),
+                    cornerRadius = corner
+                )
+            }
+            val cx = pad + trackW * fraction
+            drawCircle(Color.White, radius = thumbR, center = Offset(cx, cy))
+            drawCircle(
+                color = primary.copy(alpha = 0.9f),
+                radius = thumbR,
+                center = Offset(cx, cy),
+                style = Stroke(width = 2.dp.toPx())
+            )
+        }
+    }
 }
 
 /** 纯文字设置行（左：标题+说明，右：值/开关），照 WakeUp 样式 */
@@ -393,26 +570,34 @@ fun TextRow(
                     else -> Modifier
                 }
             )
-            .padding(vertical = 14.dp)
+            .padding(vertical = 16.dp)
     ) {
         Column(
             modifier = Modifier.weight(1f),
             verticalArrangement = Arrangement.spacedBy(3.dp)
         ) {
-            Text(title, style = MaterialTheme.typography.bodyLarge)
+            Text(
+                title,
+                style = MaterialTheme.typography.bodyLarge,
+                fontWeight = FontWeight.SemiBold
+            )
             if (desc != null) {
                 Text(
                     desc,
-                    style = MaterialTheme.typography.bodySmall,
-                    color = MaterialTheme.colorScheme.onSurfaceVariant
+                    style = MaterialTheme.typography.bodySmall.copy(lineHeight = 19.sp),
+                    color = cardSecondaryColor()
                 )
             }
         }
         if (value != null) {
+            // 右侧数值比说明文字更亮、更实，视线扫过去先看到「35%」再看解释
             Text(
                 value,
                 style = MaterialTheme.typography.bodyMedium,
-                color = MaterialTheme.colorScheme.onSurfaceVariant,
+                fontWeight = FontWeight.Medium,
+                color = if (MaterialTheme.colorScheme.surface.luminance() < 0.5f)
+                    Color.White.copy(alpha = 0.92f) else MaterialTheme.colorScheme.onSurfaceVariant,
+                textAlign = TextAlign.End,
                 modifier = Modifier.padding(start = 12.dp)
             )
         }

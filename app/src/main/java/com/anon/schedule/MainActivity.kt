@@ -114,6 +114,7 @@ import com.anon.schedule.ui.table.TableStyleScreen
 import com.anon.schedule.ui.theme.AppTheme
 import com.anon.schedule.ui.theme.GlassParams
 import com.anon.schedule.ui.theme.LocalBackdrop
+import com.anon.schedule.ui.theme.LocalCardAlpha
 import com.anon.schedule.ui.theme.LocalHasBackground
 import com.anon.schedule.ui.theme.SuperellipseShape
 import com.anon.schedule.ui.theme.glassGlow
@@ -189,7 +190,7 @@ class MainActivity : ComponentActivity() {
             2 -> true
             else -> sysDark
         }
-        window.setBackgroundDrawable(ColorDrawable(if (dark) 0xFF1A1216.toInt() else 0xFFFDF7FA.toInt()))
+        window.setBackgroundDrawable(ColorDrawable(if (dark) 0xFF000000.toInt() else 0xFFF6F6F8.toInt()))
         // 从桌面快捷方式进来：进课表页后直接弹出「添加小部件」
         val fromWidgetShortcut = intent?.getStringExtra(EXTRA_ADD_WIDGET) == "1"
         setContent {
@@ -201,6 +202,8 @@ class MainActivity : ComponentActivity() {
                 // 有背景图时卡片需要更实的底色托住文字（夜间尤其），用 CompositionLocal 下传
                 CompositionLocalProvider(
                     LocalHasBackground provides hasBackground,
+                    // 卡片不透明度跟随「我的」页里的滑块，深/浅模式都生效
+                    LocalCardAlpha provides (st.tableSettings().cardAlphaPercent / 100f),
                     LocalBackdrop provides if (st.settings.liquidGlass) glassBackdrop else null
                 ) {
                     AppRoot(glassBackdrop, fromWidgetShortcut)
@@ -336,7 +339,10 @@ fun AppRoot(backdrop: LayerBackdrop, addWidgetShortcut: Boolean = false) {
             Scaffold(
                 // 遮罩已画在玻璃采样层里，这里让出底色，避免把折射层再盖灰
                 containerColor = if (background != null && showWallpaper) Color.Transparent
-                else MaterialTheme.colorScheme.background
+                else MaterialTheme.colorScheme.background,
+                // 底色是 Transparent 时 contentColorFor 查不到对应色、会返回 Unspecified，
+                // 没显式指定颜色的文字（如「我的」页标题）就会回落成黑色，深色模式压在背景图上几乎看不见
+                contentColor = MaterialTheme.colorScheme.onBackground
             ) { padding ->
                 Box(
                     Modifier
@@ -660,8 +666,15 @@ private fun GlassPillNav(
         )
         // 3.5 拖选高亮胶囊：中心跟随手指连续移动（可停在两格中间），松手弹簧吸附
         if (itemW > 0f) {
-            val capsuleColor = MaterialTheme.colorScheme.primary.copy(alpha = 0.16f)
-            val capsuleCornerPx = with(density) { 22.dp.toPx() }
+            // 选中态胶囊：品牌色上下渐变的半透明高亮，比单纯换文字颜色更有「浮起来」的分量
+            val capsuleBrush = Brush.verticalGradient(
+                listOf(
+                    MaterialTheme.colorScheme.primary.copy(alpha = 0.28f),
+                    MaterialTheme.colorScheme.primary.copy(alpha = 0.14f)
+                )
+            )
+            val capsuleCornerPx = with(density) { 24.dp.toPx() }
+            val capsuleStroke = MaterialTheme.colorScheme.primary.copy(alpha = 0.20f)
             Box(
                 Modifier
                     .matchParentSize()
@@ -669,11 +682,19 @@ private fun GlassPillNav(
                         // 位置在绘制期现读，只触发重绘不触发重组：拖动时手指一动胶囊就到
                         val pos = if (dragging) dragPos.floatValue else slidePos.value
                         val x = padPx + pos * stepPx
+                        val capsuleSize = Size(itemW, size.height - 2 * padPx)
                         drawRoundRect(
-                            color = capsuleColor,
+                            brush = capsuleBrush,
                             topLeft = Offset(x, padPx),
-                            size = Size(itemW, size.height - 2 * padPx),
+                            size = capsuleSize,
                             cornerRadius = CornerRadius(capsuleCornerPx)
+                        )
+                        drawRoundRect(
+                            color = capsuleStroke,
+                            topLeft = Offset(x, padPx),
+                            size = capsuleSize,
+                            cornerRadius = CornerRadius(capsuleCornerPx),
+                            style = androidx.compose.ui.graphics.drawscope.Stroke(width = 1.dp.toPx())
                         )
                     }
             )

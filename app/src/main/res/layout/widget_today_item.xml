@@ -1,26 +1,21 @@
 <?xml version="1.0" encoding="utf-8"?>
-<!-- 今日课程列表中的一行 -->
+<!-- 今日课程列表中的一行：左侧细色线，课程名/地点靠左，起止时间靠右 -->
 <LinearLayout xmlns:android="http://schemas.android.com/apk/res/android"
     android:id="@+id/item_root"
     android:layout_width="match_parent"
     android:layout_height="wrap_content"
     android:gravity="center_vertical"
     android:orientation="horizontal"
-    android:paddingTop="5dp"
-    android:paddingBottom="5dp">
-
-    <TextView
-        android:id="@+id/item_time"
-        android:layout_width="62dp"
-        android:layout_height="wrap_content"
-        android:textColor="@color/widget_text"
-        android:textSize="10sp" />
+    android:paddingStart="2dp"
+    android:paddingEnd="2dp"
+    android:paddingTop="10dp"
+    android:paddingBottom="10dp">
 
     <TextView
         android:id="@+id/item_accent"
-        android:layout_width="4dp"
-        android:layout_height="30dp"
-        android:layout_marginEnd="8dp"
+        android:layout_width="3dp"
+        android:layout_height="44dp"
+        android:layout_marginEnd="11dp"
         android:background="#FFE8629B" />
 
     <LinearLayout
@@ -33,19 +28,45 @@
             android:id="@+id/item_name"
             android:layout_width="match_parent"
             android:layout_height="wrap_content"
-            android:ellipsize="end"
+            android:ellipsize="middle"
             android:maxLines="1"
-            android:textColor="@color/widget_text"
-            android:textSize="12sp"
+            android:textColor="@color/widget_card_text"
+            android:textSize="14sp"
             android:textStyle="bold" />
 
         <TextView
             android:id="@+id/item_room"
             android:layout_width="match_parent"
             android:layout_height="wrap_content"
+            android:layout_marginTop="3dp"
             android:ellipsize="end"
             android:maxLines="1"
-            android:textColor="@color/widget_text_dim"
-            android:textSize="10sp" />
+            android:textColor="@color/widget_card_dim"
+            android:textSize="11sp" />
+    </LinearLayout>
+
+    <LinearLayout
+        android:layout_width="wrap_content"
+        android:layout_height="wrap_content"
+        android:layout_marginStart="8dp"
+        android:gravity="end"
+        android:orientation="vertical">
+
+        <TextView
+            android:id="@+id/item_start"
+            android:layout_width="wrap_content"
+            android:layout_height="wrap_content"
+            android:maxLines="1"
+            android:textColor="@color/widget_card_text"
+            android:textSize="12sp" />
+
+        <TextView
+            android:id="@+id/item_end"
+            android:layout_width="wrap_content"
+            android:layout_height="wrap_content"
+            android:layout_marginTop="3dp"
+            android:maxLines="1"
+            android:textColor="@color/widget_card_dim"
+            android:textSize="11sp" />
     </LinearLayout>
 </LinearLayout>

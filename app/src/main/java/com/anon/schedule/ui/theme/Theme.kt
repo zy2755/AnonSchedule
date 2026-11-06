@@ -22,6 +22,9 @@ import androidx.compose.ui.graphics.lerp
 /** 是否启用液态玻璃（透出底层背景的半透明质感） */
 val LocalGlass = staticCompositionLocalOf { false }
 
+/** 「我的」页调出的卡片背景不透明度（0.4~1.0），所有卡片共用 */
+val LocalCardAlpha = staticCompositionLocalOf { 1f }
+
 /** 是否设置了背景图：有背景图时卡片需要更「托底」，否则文字会糊在图上看不清 */
 val LocalHasBackground = staticCompositionLocalOf { false }
 
@@ -31,51 +34,48 @@ val LocalHasBackground = staticCompositionLocalOf { false }
  */
 val LocalBackdrop = staticCompositionLocalOf<com.kyant.backdrop.Backdrop?> { null }
 
-val Pink50 = Color(0xFFFFF0F5)
-val Pink100 = Color(0xFFFFD9E6)
-val Pink300 = Color(0xFFFF9EC4)
-val Pink500 = Color(0xFFE8629B)
-val Pink700 = Color(0xFFB83A72)
-
+// 全站黑白化：强调色不再用饱和粉，浅色模式走近黑、深色模式走近白。
+// 粉色调只从品牌层移除；课程色、错误色等「语义色」不受影响。
 private val LightColors = lightColorScheme(
-    primary = Pink500,
+    primary = Color(0xFF141416),
     onPrimary = Color.White,
-    primaryContainer = Pink100,
-    onPrimaryContainer = Pink700,
-    secondary = Color(0xFF7A6CF0),
+    primaryContainer = Color(0xFFEDEDF0),
+    onPrimaryContainer = Color(0xFF141416),
+    secondary = Color(0xFF5C5C63),
     onSecondary = Color.White,
-    secondaryContainer = Color(0xFFE6E1FF),
-    onSecondaryContainer = Color(0xFF3B2FA8),
-    tertiary = Color(0xFF3DBBA0),
+    secondaryContainer = Color(0xFFECECEF),
+    onSecondaryContainer = Color(0xFF1C1C1E),
+    tertiary = Color(0xFF3C3C42),
     onTertiary = Color.White,
-    background = Color(0xFFFDF7FA),
-    onBackground = Color(0xFF2B2227),
-    surface = Color(0xFFFFFBFD),
-    onSurface = Color(0xFF2B2227),
-    surfaceVariant = Color(0xFFF4E6EC),
-    onSurfaceVariant = Color(0xFF5D4A52),
-    outline = Color(0xFFD9C2CC),
+    background = Color(0xFFF6F6F8),
+    onBackground = Color(0xFF141416),
+    surface = Color(0xFFFFFFFF),
+    onSurface = Color(0xFF141416),
+    surfaceVariant = Color(0xFFEFEFF2),
+    onSurfaceVariant = Color(0xFF6F6F78),
+    outline = Color(0xFFD2D2D8),
     error = Color(0xFFE5484D)
 )
 
 private val DarkColors = darkColorScheme(
-    primary = Pink300,
-    onPrimary = Color(0xFF4E0E2C),
-    primaryContainer = Pink700,
-    onPrimaryContainer = Pink100,
-    secondary = Color(0xFFB9B1FF),
-    onSecondary = Color(0xFF2A1E8F),
-    secondaryContainer = Color(0xFF443BA8),
-    onSecondaryContainer = Color(0xFFE6E1FF),
-    tertiary = Color(0xFF6FE0C5),
-    onTertiary = Color(0xFF00382C),
-    background = Color(0xFF1A1216),
-    onBackground = Color(0xFFF3E4EA),
-    surface = Color(0xFF221920),
-    onSurface = Color(0xFFF3E4EA),
-    surfaceVariant = Color(0xFF3A2C33),
-    onSurfaceVariant = Color(0xFFE2C7D1),
-    outline = Color(0xFF6E5761),
+    primary = Color(0xFFF2F2F5),
+    onPrimary = Color(0xFF141416),
+    primaryContainer = Color(0xFF2C2C31),
+    onPrimaryContainer = Color(0xFFF2F2F5),
+    secondary = Color(0xFFB4B4BC),
+    onSecondary = Color(0xFF1C1C1E),
+    secondaryContainer = Color(0xFF3A3A40),
+    onSecondaryContainer = Color(0xFFE8E8EC),
+    tertiary = Color(0xFFC9C9D0),
+    onTertiary = Color(0xFF141416),
+    // 深色模式底色纯黑，卡片/文字中性灰：靠明度分层，不靠色相
+    background = Color(0xFF000000),
+    onBackground = Color(0xFFF2F2F5),
+    surface = Color(0xFF121214),
+    onSurface = Color(0xFFF2F2F5),
+    surfaceVariant = Color(0xFF1E1E21),
+    onSurfaceVariant = Color(0xFFB4B4BC),
+    outline = Color(0xFF5C5C63),
     error = Color(0xFFFF8A8A)
 )
 

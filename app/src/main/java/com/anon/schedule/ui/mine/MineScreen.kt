@@ -3,7 +3,9 @@ package com.anon.schedule.ui.mine
 import android.content.Intent
 import android.net.Uri
 import androidx.compose.foundation.clickable
+import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Column
+import androidx.compose.foundation.layout.PaddingValues
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxSize
@@ -13,7 +15,6 @@ import androidx.compose.foundation.layout.heightIn
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.rememberScrollState
-import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.Bathtub
@@ -39,16 +40,25 @@ import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
-import androidx.compose.ui.draw.clip
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import com.anon.schedule.data.Repo
 import com.anon.schedule.data.UpdateChecker
+import com.anon.schedule.data.tableSettings
 import com.anon.schedule.ui.common.GlassCard
+import com.anon.schedule.ui.common.GradientSlider
 import com.anon.schedule.ui.common.SectionTitle
+import com.anon.schedule.ui.common.cardSecondaryColor
 import kotlinx.coroutines.launch
+import kotlin.math.roundToInt
+
+/** 列表型卡片的统一内边距：横纵向都交给行自己，避免「卡片 16 + 行 14」叠成一大块空白 */
+private val listCardPadding = PaddingValues(horizontal = 0.dp, vertical = 4.dp)
+
+/** 列表行内边距：左右 16 和卡片对齐，上下 12 让文字与卡片边缘留出一点呼吸但不再悬空 */
+private val listRowPadding = Modifier.padding(horizontal = 16.dp, vertical = 12.dp)
 
 @Composable
 fun MineScreen(
@@ -73,6 +83,8 @@ fun MineScreen(
     Column(
         Modifier
             .fillMaxSize()
+            // 内容比一屏高了，必须能滚：不然「关于」会被挤到底部之下够不着
+            .verticalScroll(rememberScrollState())
             .padding(horizontal = 16.dp)
     ) {
         Text(
@@ -83,23 +95,27 @@ fun MineScreen(
         )
         Text(
             "当前课表：${st.tables.firstOrNull { it.id == st.currentTableId }?.name ?: "我的课表"} · 共 ${st.courses.count { it.tableId == st.currentTableId }} 门课",
-            style = MaterialTheme.typography.bodyMedium,
-            color = MaterialTheme.colorScheme.onSurfaceVariant
+            style = MaterialTheme.typography.bodyMedium.copy(lineHeight = 20.sp),
+            color = cardSecondaryColor()
         )
 
         SectionTitle("通用")
         GlassCard(
             modifier = Modifier.fillMaxWidth(),
-            onClick = onSettings
+            onClick = onSettings,
+            contentPadding = listCardPadding
         ) {
             androidx.compose.foundation.layout.Row(
                 verticalAlignment = Alignment.CenterVertically,
-                modifier = Modifier.fillMaxWidth()
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .then(listRowPadding)
             ) {
                 Icon(Icons.Default.Settings, contentDescription = null, tint = MaterialTheme.colorScheme.primary)
                 Text(
                     "设置",
                     style = MaterialTheme.typography.bodyLarge,
+                    fontWeight = FontWeight.SemiBold,
                     modifier = Modifier
                         .weight(1f)
                         .padding(start = 12.dp)
@@ -108,19 +124,65 @@ fun MineScreen(
             }
         }
 
+        SectionTitle("外观")
+        GlassCard(modifier = Modifier.fillMaxWidth()) {
+            val settings = st.tableSettings()
+            Row(
+                verticalAlignment = Alignment.CenterVertically,
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .padding(vertical = 4.dp)
+            ) {
+                Column(
+                    modifier = Modifier.weight(1f),
+                    verticalArrangement = Arrangement.spacedBy(3.dp)
+                ) {
+                    Text(
+                        "卡片背景不透明度",
+                        style = MaterialTheme.typography.bodyLarge,
+                        fontWeight = FontWeight.SemiBold
+                    )
+                    Text(
+                        "调低会让卡片更透，露出底下的背景",
+                        style = MaterialTheme.typography.bodySmall.copy(lineHeight = 19.sp),
+                        color = cardSecondaryColor()
+                    )
+                }
+                Text(
+                    "${settings.cardAlphaPercent}%",
+                    style = MaterialTheme.typography.bodyMedium,
+                    fontWeight = FontWeight.Medium,
+                    color = MaterialTheme.colorScheme.primary,
+                    modifier = Modifier.padding(start = 12.dp)
+                )
+            }
+            GradientSlider(
+                value = settings.cardAlphaPercent / 100f,
+                onValueChange = { f ->
+                    Repo.updateSettings { it.copy(cardAlphaPercent = (f * 100).roundToInt().coerceIn(40, 100)) }
+                },
+                valueRange = 0.4f..1f,
+                modifier = Modifier.padding(top = 2.dp)
+            )
+        }
+
         SectionTitle("教务")
         GlassCard(
             modifier = Modifier.fillMaxWidth(),
-            onClick = onGrades
+            onClick = onGrades,
+            contentPadding = listCardPadding
         ) {
             Row(
                 verticalAlignment = Alignment.CenterVertically,
-                modifier = Modifier.fillMaxWidth()
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .then(listRowPadding)
             ) {
                 Icon(Icons.Default.School, contentDescription = null, tint = MaterialTheme.colorScheme.primary)
                 Text(
                     "成绩查询",
                     style = MaterialTheme.typography.bodyLarge,
+                    fontWeight = FontWeight.SemiBold,
                     modifier = Modifier
                         .weight(1f)
                         .padding(start = 12.dp)
@@ -132,16 +194,20 @@ fun MineScreen(
         SectionTitle("澡堂")
         GlassCard(
             modifier = Modifier.fillMaxWidth(),
-            onClick = onUBang
+            onClick = onUBang,
+            contentPadding = listCardPadding
         ) {
             Row(
                 verticalAlignment = Alignment.CenterVertically,
-                modifier = Modifier.fillMaxWidth()
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .then(listRowPadding)
             ) {
                 Icon(Icons.Default.Bathtub, contentDescription = null, tint = MaterialTheme.colorScheme.primary)
                 Text(
                     "澡堂空位 / 账户余额",
                     style = MaterialTheme.typography.bodyLarge,
+                    fontWeight = FontWeight.SemiBold,
                     modifier = Modifier
                         .weight(1f)
                         .padding(start = 12.dp)
@@ -153,16 +219,20 @@ fun MineScreen(
         SectionTitle("学习通")
         GlassCard(
             modifier = Modifier.fillMaxWidth(),
-            onClick = { showChaoxingTip = true }
+            onClick = { showChaoxingTip = true },
+            contentPadding = listCardPadding
         ) {
             Row(
                 verticalAlignment = Alignment.CenterVertically,
-                modifier = Modifier.fillMaxWidth()
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .then(listRowPadding)
             ) {
                 Icon(Icons.Default.List, contentDescription = null, tint = MaterialTheme.colorScheme.primary)
                 Text(
                     "我的作业 / 考试",
                     style = MaterialTheme.typography.bodyLarge,
+                    fontWeight = FontWeight.SemiBold,
                     modifier = Modifier
                         .weight(1f)
                         .padding(start = 12.dp)
@@ -173,12 +243,11 @@ fun MineScreen(
 
         SectionTitle("关于")
         // 两张独立卡片紧贴堆叠会出现「双边缘」的割裂感；合并成一张、用分隔线划行，和其他分组保持一致
-        GlassCard(modifier = Modifier.fillMaxWidth()) {
+        GlassCard(modifier = Modifier.fillMaxWidth(), contentPadding = listCardPadding) {
             Row(
                 verticalAlignment = Alignment.CenterVertically,
                 modifier = Modifier
                     .fillMaxWidth()
-                    .clip(RoundedCornerShape(12.dp))
                     .clickable {
                         if (!checking) {
                             checking = true
@@ -189,12 +258,13 @@ fun MineScreen(
                             }
                         }
                     }
-                    .padding(vertical = 12.dp)
+                    .then(listRowPadding)
             ) {
                 Icon(Icons.Default.Refresh, contentDescription = null, tint = MaterialTheme.colorScheme.primary)
                 Text(
                     if (checking) "正在检查…" else "检测更新",
                     style = MaterialTheme.typography.bodyLarge,
+                    fontWeight = FontWeight.SemiBold,
                     modifier = Modifier
                         .weight(1f)
                         .padding(start = 12.dp)
@@ -217,14 +287,14 @@ fun MineScreen(
                 verticalAlignment = Alignment.CenterVertically,
                 modifier = Modifier
                     .fillMaxWidth()
-                    .clip(RoundedCornerShape(12.dp))
                     .clickable(onClick = onUpdateLog)
-                    .padding(vertical = 12.dp)
+                    .then(listRowPadding)
             ) {
                 Icon(Icons.Default.History, contentDescription = null, tint = MaterialTheme.colorScheme.primary)
                 Text(
                     "更新内容",
                     style = MaterialTheme.typography.bodyLarge,
+                    fontWeight = FontWeight.SemiBold,
                     modifier = Modifier
                         .weight(1f)
                         .padding(start = 12.dp)

@@ -28,7 +28,7 @@ class TodayLargeWidget : AppWidgetProvider() {
     }
 
     companion object {
-        private val dateFmt = DateTimeFormatter.ofPattern("M月d日")
+        private val dateFmt = DateTimeFormatter.ofPattern("M.d")
 
         fun refresh(ctx: Context) {
             val mgr = AppWidgetManager.getInstance(ctx)
@@ -43,11 +43,12 @@ class TodayLargeWidget : AppWidgetProvider() {
             val today = LocalDate.now()
             val week = Repo.weekOf(st, today) ?: st.tableSettings().currentWeek
             val weekPart = if (st.tableSettings().startDate != null) " · 第 $week 周" else ""
+            val tableName = st.tables.firstOrNull { it.id == st.currentTableId }?.name ?: "我的课表"
 
             val views = RemoteViews(ctx.packageName, R.layout.widget_today_large)
             views.setTextViewText(
                 R.id.widget_header,
-                "今日课程 · ${today.format(dateFmt)} 周${"一二三四五六日"[today.dayOfWeek.value - 1]}$weekPart"
+                "$tableName · ${today.format(dateFmt)} 周${"一二三四五六日"[today.dayOfWeek.value - 1]}$weekPart"
             )
             views.setRemoteAdapter(R.id.widget_list, Intent(ctx, TodayLargeService::class.java))
             views.setEmptyView(R.id.widget_list, R.id.widget_empty)
@@ -83,7 +84,8 @@ class TodayLargeFactory(private val ctx: Context) : RemoteViewsService.RemoteVie
     override fun getViewAt(position: Int): RemoteViews? {
         val c = items.getOrNull(position) ?: return null
         val v = RemoteViews(ctx.packageName, R.layout.widget_today_item)
-        v.setTextViewText(R.id.item_time, c.timeText)
+        v.setTextViewText(R.id.item_start, c.startText)
+        v.setTextViewText(R.id.item_end, c.endText)
         v.setTextViewText(R.id.item_name, c.name)
         v.setTextViewText(R.id.item_room, WidgetData.subText(c))
         v.setInt(R.id.item_accent, "setBackgroundColor", c.colorArgb)

@@ -545,7 +545,7 @@ fun SettingsScreen(onBack: () -> Unit, onOpenSub: (SubPage) -> Unit) {
     if (showThemeSheet) {
         val darkDialog = MaterialTheme.colorScheme.surface.luminance() < 0.5f
         val dialogBg = if (darkDialog) Color(0xFF1E1B21) else MaterialTheme.colorScheme.surface
-        val optionBg = if (darkDialog) Color(0xFF2D2A31) else Color(0xFFF1ECF0)
+        val optionBg = if (darkDialog) Color(0xFF2C2C31) else Color(0xFFF1F1F3)
         val selectedBg = Color(0xFFA8C7FA)
         val selectedFg = Color(0xFF0A305F)
         Dialog(

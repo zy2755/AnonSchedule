@@ -6,7 +6,7 @@
     android:layout_height="match_parent"
     android:background="@drawable/widget_bg"
     android:orientation="vertical"
-    android:padding="10dp">
+    android:padding="14dp">
 
     <!-- 顶部：应用名 + 日期/周次 -->
     <LinearLayout
@@ -17,24 +17,27 @@
         android:paddingBottom="8dp">
 
         <TextView
-            android:layout_width="wrap_content"
+            android:id="@+id/mt_table"
+            android:layout_width="0dp"
             android:layout_height="wrap_content"
+            android:layout_weight="1"
+            android:ellipsize="end"
+            android:maxLines="1"
             android:text="课程表"
-            android:textColor="@color/widget_text"
-            android:textSize="11sp"
-            android:textStyle="bold" />
+            android:textColor="@color/widget_text_dim"
+            android:textSize="12sp" />
 
         <TextView
             android:id="@+id/mt_date"
-            android:layout_width="0dp"
+            android:layout_width="wrap_content"
             android:layout_height="wrap_content"
             android:layout_marginStart="8dp"
-            android:layout_weight="1"
             android:ellipsize="end"
             android:gravity="end"
             android:maxLines="1"
-            android:textColor="@color/widget_text_dim"
-            android:textSize="10sp" />
+            android:textColor="@color/widget_text"
+            android:textSize="12sp"
+            android:textStyle="bold" />
     </LinearLayout>
 
     <LinearLayout

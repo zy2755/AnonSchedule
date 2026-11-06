@@ -1,14 +1,14 @@
 <?xml version="1.0" encoding="utf-8"?>
-<!-- 4×2 今日课程：头部（日期/周次）+ 最多两张课程卡片；都上完则显示收工提示 -->
+<!-- 4×2 今日课程：深色极简，左侧课表名、右侧日期周次，下面是最多两行课程 -->
 <LinearLayout xmlns:android="http://schemas.android.com/apk/res/android"
     android:id="@android:id/background"
     android:layout_width="match_parent"
     android:layout_height="match_parent"
     android:background="@drawable/widget_bg"
     android:orientation="vertical"
-    android:padding="8dp">
+    android:padding="14dp">
 
-    <!-- 头部：左侧日期，右侧周次 -->
+    <!-- 头部：课表名（灰） + 日期（白） + 周次（灰） -->
     <LinearLayout
         android:layout_width="match_parent"
         android:layout_height="wrap_content"
@@ -16,14 +16,23 @@
         android:orientation="horizontal"
         android:paddingStart="4dp"
         android:paddingEnd="4dp"
-        android:paddingBottom="5dp">
+        android:paddingBottom="10dp">
 
         <TextView
-            android:id="@+id/widget_date"
+            android:id="@+id/widget_table"
             android:layout_width="0dp"
             android:layout_height="wrap_content"
             android:layout_weight="1"
             android:ellipsize="end"
+            android:maxLines="1"
+            android:textColor="@color/widget_text_dim"
+            android:textSize="13sp" />
+
+        <TextView
+            android:id="@+id/widget_date"
+            android:layout_width="wrap_content"
+            android:layout_height="wrap_content"
+            android:layout_marginStart="8dp"
             android:maxLines="1"
             android:textColor="@color/widget_text"
             android:textSize="13sp"
@@ -36,15 +45,16 @@
             android:layout_marginStart="6dp"
             android:maxLines="1"
             android:textColor="@color/widget_text_dim"
-            android:textSize="10sp" />
+            android:textSize="12sp" />
     </LinearLayout>
 
-    <!-- 课程卡片（最多两张，由代码 addView 进来，等分高度） -->
+    <!-- 课程行（最多两节，由代码 addView 进来） -->
     <LinearLayout
         android:id="@+id/widget_cards"
         android:layout_width="match_parent"
         android:layout_height="0dp"
         android:layout_weight="1"
+        android:gravity="center_vertical"
         android:orientation="vertical" />
 
     <!-- 今天已无课 / 今天没课时的提示 -->
@@ -69,7 +79,7 @@
             android:id="@+id/widget_done_sub"
             android:layout_width="wrap_content"
             android:layout_height="wrap_content"
-            android:layout_marginTop="4dp"
+            android:layout_marginTop="6dp"
             android:gravity="center"
             android:textColor="@color/widget_text_dim"
             android:textSize="11sp" />

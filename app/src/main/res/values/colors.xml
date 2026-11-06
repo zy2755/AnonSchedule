@@ -1,13 +1,14 @@
 <?xml version="1.0" encoding="utf-8"?>
 <resources>
-    <!-- 小组件配色（浅色模式） -->
-    <color name="widget_bg">#F3EDF1</color>
-    <color name="widget_chip">#FCFAFB</color>
-    <color name="widget_text">#2B2227</color>
-    <color name="widget_text_dim">#5D4A52</color>
-    <!-- 课程色卡片上的文字：卡片底色是浅色课程色，所以两种模式都用深色字保证对比 -->
-    <color name="widget_card_text">#2B2227</color>
-    <color name="widget_card_dim">#5A4149</color>
+    <!-- 小组件配色（浅色模式）：白底 + 黑字，和深色版共用同一套布局 -->
+    <color name="widget_bg">#FCFCFE</color>
+    <color name="widget_bg_stroke">#1F000000</color>
+    <color name="widget_chip">#F1F1F5</color>
+    <color name="widget_text">#1C1C1E</color>
+    <color name="widget_text_dim">#6F6F78</color>
+    <!-- 课程行文字：不铺课程色底，统一深灰/中灰 -->
+    <color name="widget_card_text">#1C1C1E</color>
+    <color name="widget_card_dim">#7A7A83</color>
     <!-- 今日/明日两列之间的分隔线 -->
-    <color name="widget_divider">#DED2D8</color>
+    <color name="widget_divider">#E4E4EA</color>
 </resources>

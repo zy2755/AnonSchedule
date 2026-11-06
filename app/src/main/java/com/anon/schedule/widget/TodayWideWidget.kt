@@ -4,8 +4,6 @@ import android.appwidget.AppWidgetManager
 import android.appwidget.AppWidgetProvider
 import android.content.ComponentName
 import android.content.Context
-import android.content.res.ColorStateList
-import android.os.Build
 import android.os.Bundle
 import android.view.View
 import android.widget.RemoteViews
@@ -30,7 +28,7 @@ class TodayWideWidget : AppWidgetProvider() {
     companion object {
         /** 最多两节：正在上的一节 + 紧跟着的一节 */
         private const val MAX_CARDS = 2
-        private val dateFmt = DateTimeFormatter.ofPattern("M月d日")
+        private val dateFmt = DateTimeFormatter.ofPattern("M.d")
 
         fun refresh(ctx: Context) {
             val mgr = AppWidgetManager.getInstance(ctx)
@@ -45,14 +43,14 @@ class TodayWideWidget : AppWidgetProvider() {
             val now = LocalTime.now()
             val today = LocalDate.now()
             val week = Repo.weekOf(st, today) ?: st.tableSettings().currentWeek
-            val weekPart = if (st.tableSettings().startDate != null) "第 $week 周" else ""
+            val weekPart = if (st.tableSettings().startDate != null) "第 $week 周 " else ""
+            val weekday = "周${"一二三四五六日"[today.dayOfWeek.value - 1]}"
+            val tableName = st.tables.firstOrNull { it.id == st.currentTableId }?.name ?: "我的课表"
 
             val views = RemoteViews(ctx.packageName, R.layout.widget_today_wide)
-            views.setTextViewText(
-                R.id.widget_date,
-                "${today.format(dateFmt)} 周${"一二三四五六日"[today.dayOfWeek.value - 1]}"
-            )
-            views.setTextViewText(R.id.widget_week, weekPart)
+            views.setTextViewText(R.id.widget_table, tableName)
+            views.setTextViewText(R.id.widget_date, today.format(dateFmt))
+            views.setTextViewText(R.id.widget_week, weekPart + weekday)
 
             val remain = WidgetData.remaining(all, now).take(MAX_CARDS)
             if (remain.isEmpty()) {
@@ -76,19 +74,14 @@ class TodayWideWidget : AppWidgetProvider() {
             return views
         }
 
-        /** 一节课程 = 一张填充了课程色的圆角卡片 */
+        /** 一节课程 = 左侧一条细色线 + 课程信息 + 右侧起止时间，不铺大色块 */
         private fun card(ctx: Context, c: WidgetCourse): RemoteViews {
             val v = RemoteViews(ctx.packageName, R.layout.widget_today_chip)
-            v.setTextViewText(R.id.card_time, c.timeText)
             v.setTextViewText(R.id.card_name, c.name)
-            v.setTextViewText(R.id.card_node, "第 ${c.startNode}-${c.endNode} 节")
             v.setTextViewText(R.id.card_room, WidgetData.subText(c))
-            // 卡片整体铺课程色：Android 12+ 给圆角 drawable 着色（保留圆角），更早的系统退回纯色填充
-            if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.S) {
-                v.setColorStateList(R.id.card_root, "setBackgroundTintList", ColorStateList.valueOf(c.colorArgb))
-            } else {
-                v.setInt(R.id.card_root, "setBackgroundColor", c.colorArgb)
-            }
+            v.setTextViewText(R.id.card_start, c.startText)
+            v.setTextViewText(R.id.card_end, c.endText)
+            v.setInt(R.id.card_accent, "setBackgroundColor", c.colorArgb)
             return v
         }
     }

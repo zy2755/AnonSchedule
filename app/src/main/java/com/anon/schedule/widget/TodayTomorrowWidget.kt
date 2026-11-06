@@ -37,10 +37,10 @@ class TodayTomorrowWidget : AppWidgetProvider() {
         private const val WIDE_MIN_DP = 165
 
         /** 顶部标题栏 + 列标题 + 内边距合计占掉的高度（dp），用来推算每列能塞几行课 */
-        private const val COL_OVERHEAD_DP = 62
+        private const val COL_OVERHEAD_DP = 66
 
-        /** 一行课程（课程名 + 时间）大约占的高度（dp） */
-        private const val ROW_HEIGHT_DP = 34
+        /** 一行课程（课程名 + 地点时间）大约占的高度（dp） */
+        private const val ROW_HEIGHT_DP = 40
 
         private val dateFmt = DateTimeFormatter.ofPattern("M.dd")
 
@@ -72,8 +72,10 @@ class TodayTomorrowWidget : AppWidgetProvider() {
             val today = LocalDate.now()
             val week = Repo.weekOf(st, today) ?: st.tableSettings().currentWeek
             val weekPart = if (st.tableSettings().startDate != null) " · 第${week}周" else ""
+            val tableName = st.tables.firstOrNull { it.id == st.currentTableId }?.name ?: "我的课表"
 
             val views = RemoteViews(ctx.packageName, R.layout.widget_today_tomorrow)
+            views.setTextViewText(R.id.mt_table, tableName)
             views.setTextViewText(
                 R.id.mt_date,
                 "${today.format(dateFmt)} 周${"一二三四五六日"[today.dayOfWeek.value - 1]}$weekPart"
@@ -112,7 +114,10 @@ class TodayTomorrowWidget : AppWidgetProvider() {
         private fun row(ctx: Context, c: WidgetCourse): RemoteViews {
             val v = RemoteViews(ctx.packageName, R.layout.widget_mt_item)
             v.setTextViewText(R.id.mt_item_name, c.name)
-            v.setTextViewText(R.id.mt_item_time, c.timeText)
+            v.setTextViewText(
+                R.id.mt_item_time,
+                listOf(WidgetData.subText(c), c.timeText).filter { it.isNotBlank() }.joinToString("  ·  ")
+            )
             v.setInt(R.id.mt_item_accent, "setBackgroundColor", c.colorArgb)
             return v
         }

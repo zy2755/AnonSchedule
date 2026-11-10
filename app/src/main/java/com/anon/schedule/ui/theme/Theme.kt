@@ -24,6 +24,15 @@ import androidx.compose.ui.graphics.lerp
 /** 是否启用液态玻璃（透出底层背景的半透明质感） */
 val LocalGlass = staticCompositionLocalOf { false }
 
+/** 当前配色的点缀色：滑块填充、深色底栏高亮等「小面积强调」用它 */
+val LocalPaletteAccent = staticCompositionLocalOf { Color(0xFFAAC8EA) }
+
+/** 点缀色上的深色（滑块圆点） */
+val LocalPaletteAccentDeep = staticCompositionLocalOf { Color(0xFF21435A) }
+
+/** 深色悬浮底栏的选中色 */
+val LocalPaletteDarkBarAccent = staticCompositionLocalOf { Color(0xFFA2C0E1) }
+
 /**
  * 卡片不透明度的「实时预览值」：拖动滑块时只改这个 snapshot state。
  * 千万不要写 Repo.state —— 那会 copy 整个 AppState，让 setContent 与 AppRoot 两处
@@ -63,9 +72,9 @@ val LocalWallpaperHaze = staticCompositionLocalOf<dev.chrisbanes.haze.HazeState?
 // 玻璃配方由库自带的 LocalHazeStyle 统一提供（MainActivity 里 provide 一份），
 // 底栏和卡片自动共享同一组 blurRadius / tint / noise / fallbackTint。
 
-// 全站黑白化：强调色不再用饱和粉，浅色模式走近黑、深色模式走近白。
-// 粉色调只从品牌层移除；课程色、错误色等「语义色」不受影响。
-private val LightColors = lightColorScheme(
+// 默认配色「石墨」：强调色不用饱和色，浅色模式走近黑、深色模式走近白。
+// 课程色、错误色等「语义色」不受配色方案影响。
+private val GraphiteLight = lightColorScheme(
     primary = Color(0xFF141416),
     onPrimary = Color.White,
     primaryContainer = Color(0xFFEDEDF0),
@@ -86,7 +95,7 @@ private val LightColors = lightColorScheme(
     error = Color(0xFFE5484D)
 )
 
-private val DarkColors = darkColorScheme(
+private val GraphiteDark = darkColorScheme(
     primary = Color(0xFFF2F2F5),
     onPrimary = Color(0xFF141416),
     primaryContainer = Color(0xFF2C2C31),
@@ -108,6 +117,277 @@ private val DarkColors = darkColorScheme(
     error = Color(0xFFFF8A8A)
 )
 
+/**
+ * 一套主题配色：明暗两套 ColorScheme + 点缀色。
+ * 深色底统一保持纯黑，只换强调色和卡片的微色，避免破坏「纯黑 + 中性分层」的既有观感。
+ */
+data class AppPalette(
+    val id: Int,
+    val label: String,
+    val light: ColorScheme,
+    val dark: ColorScheme,
+    /** 滑块填充的浅色点缀 */
+    val accent: Color,
+    /** 滑块圆点：点缀上的深色 */
+    val accentDeep: Color,
+    /** 深色悬浮底栏的选中色 */
+    val darkBarAccent: Color
+) {
+    /** 设置页色卡预览：品牌色、点缀色、深色模式品牌色 */
+    val preview: List<Color> get() = listOf(light.primary, accent, dark.primary)
+}
+
+private val SakuraLight = lightColorScheme(
+    primary = Color(0xFFC93E70),
+    onPrimary = Color.White,
+    primaryContainer = Color(0xFFFBE3EB),
+    onPrimaryContainer = Color(0xFF7A2346),
+    secondary = Color(0xFF8A5A6B),
+    onSecondary = Color.White,
+    secondaryContainer = Color(0xFFF6E4EA),
+    onSecondaryContainer = Color(0xFF5A2C3C),
+    tertiary = Color(0xFFB5567E),
+    onTertiary = Color.White,
+    background = Color(0xFFFBF6F8),
+    onBackground = Color(0xFF1C1418),
+    surface = Color(0xFFFFFFFF),
+    onSurface = Color(0xFF1C1418),
+    surfaceVariant = Color(0xFFF4EBEF),
+    onSurfaceVariant = Color(0xFF72636A),
+    outline = Color(0xFFDCCFD5),
+    error = Color(0xFFE5484D)
+)
+
+private val SakuraDark = darkColorScheme(
+    primary = Color(0xFFFF9EC0),
+    onPrimary = Color(0xFF56122F),
+    primaryContainer = Color(0xFF4A1F31),
+    onPrimaryContainer = Color(0xFFFFD7E5),
+    secondary = Color(0xFFD9A9B8),
+    onSecondary = Color(0xFF3A1C26),
+    secondaryContainer = Color(0xFF3A2830),
+    onSecondaryContainer = Color(0xFFF1DDE4),
+    tertiary = Color(0xFFFFB3C9),
+    onTertiary = Color(0xFF541A2E),
+    background = Color(0xFF000000),
+    onBackground = Color(0xFFF6EEF1),
+    surface = Color(0xFF141214),
+    onSurface = Color(0xFFF6EEF1),
+    surfaceVariant = Color(0xFF201D1F),
+    onSurfaceVariant = Color(0xFFBCAEB4),
+    outline = Color(0xFF5E5458),
+    error = Color(0xFFFF8A8A)
+)
+
+private val OceanLight = lightColorScheme(
+    primary = Color(0xFF2E6FD0),
+    onPrimary = Color.White,
+    primaryContainer = Color(0xFFE1ECFB),
+    onPrimaryContainer = Color(0xFF173E75),
+    secondary = Color(0xFF5A6B85),
+    onSecondary = Color.White,
+    secondaryContainer = Color(0xFFE5EBF5),
+    onSecondaryContainer = Color(0xFF2F3D53),
+    tertiary = Color(0xFF3E7E9E),
+    onTertiary = Color.White,
+    background = Color(0xFFF5F8FC),
+    onBackground = Color(0xFF131820),
+    surface = Color(0xFFFFFFFF),
+    onSurface = Color(0xFF131820),
+    surfaceVariant = Color(0xFFEDF2F9),
+    onSurfaceVariant = Color(0xFF647085),
+    outline = Color(0xFFCFD8E4),
+    error = Color(0xFFE5484D)
+)
+
+private val OceanDark = darkColorScheme(
+    primary = Color(0xFF9CC0FF),
+    onPrimary = Color(0xFF0E2A56),
+    primaryContainer = Color(0xFF1C3252),
+    onPrimaryContainer = Color(0xFFD8E5FF),
+    secondary = Color(0xFFA9B8CE),
+    onSecondary = Color(0xFF1B2635),
+    secondaryContainer = Color(0xFF27313F),
+    onSecondaryContainer = Color(0xFFDDE5EF),
+    tertiary = Color(0xFF8FC6DD),
+    onTertiary = Color(0xFF0C2E3B),
+    background = Color(0xFF000000),
+    onBackground = Color(0xFFEFF3F9),
+    surface = Color(0xFF121417),
+    onSurface = Color(0xFFEFF3F9),
+    surfaceVariant = Color(0xFF1D2127),
+    onSurfaceVariant = Color(0xFFAFB8C6),
+    outline = Color(0xFF525A66),
+    error = Color(0xFFFF8A8A)
+)
+
+private val MintLight = lightColorScheme(
+    primary = Color(0xFF17805F),
+    onPrimary = Color.White,
+    primaryContainer = Color(0xFFDDF3EA),
+    onPrimaryContainer = Color(0xFF0B4A36),
+    secondary = Color(0xFF5A7368),
+    onSecondary = Color.White,
+    secondaryContainer = Color(0xFFE4F0EA),
+    onSecondaryContainer = Color(0xFF2C433A),
+    tertiary = Color(0xFF3E8E7D),
+    onTertiary = Color.White,
+    background = Color(0xFFF4FAF7),
+    onBackground = Color(0xFF111A16),
+    surface = Color(0xFFFFFFFF),
+    onSurface = Color(0xFF111A16),
+    surfaceVariant = Color(0xFFEBF4EF),
+    onSurfaceVariant = Color(0xFF5F7168),
+    outline = Color(0xFFCCDBD4),
+    error = Color(0xFFE5484D)
+)
+
+private val MintDark = darkColorScheme(
+    primary = Color(0xFF74DCB2),
+    onPrimary = Color(0xFF073D2B),
+    primaryContainer = Color(0xFF17402F),
+    onPrimaryContainer = Color(0xFFCCF2E0),
+    secondary = Color(0xFFA3C4B4),
+    onSecondary = Color(0xFF14261E),
+    secondaryContainer = Color(0xFF24352E),
+    onSecondaryContainer = Color(0xFFD7E9E0),
+    tertiary = Color(0xFF8FD3B4),
+    onTertiary = Color(0xFF0A2F24),
+    background = Color(0xFF000000),
+    onBackground = Color(0xFFEDF5F1),
+    surface = Color(0xFF111614),
+    onSurface = Color(0xFFEDF5F1),
+    surfaceVariant = Color(0xFF1C2420),
+    onSurfaceVariant = Color(0xFFADBBB3),
+    outline = Color(0xFF4F5C55),
+    error = Color(0xFFFF8A8A)
+)
+
+private val SunsetLight = lightColorScheme(
+    primary = Color(0xFFB25C12),
+    onPrimary = Color.White,
+    primaryContainer = Color(0xFFFBEADB),
+    onPrimaryContainer = Color(0xFF6B3308),
+    secondary = Color(0xFF806A57),
+    onSecondary = Color.White,
+    secondaryContainer = Color(0xFFF4E9DD),
+    onSecondaryContainer = Color(0xFF4E3B2B),
+    tertiary = Color(0xFFA97A3C),
+    onTertiary = Color.White,
+    background = Color(0xFFFBF7F2),
+    onBackground = Color(0xFF1C1611),
+    surface = Color(0xFFFFFFFF),
+    onSurface = Color(0xFF1C1611),
+    surfaceVariant = Color(0xFFF4EDE4),
+    onSurfaceVariant = Color(0xFF75685C),
+    outline = Color(0xFFDDD2C4),
+    error = Color(0xFFE5484D)
+)
+
+private val SunsetDark = darkColorScheme(
+    primary = Color(0xFFFFB77A),
+    onPrimary = Color(0xFF52270B),
+    primaryContainer = Color(0xFF4A2A12),
+    onPrimaryContainer = Color(0xFFFFE0C4),
+    secondary = Color(0xFFD5BBA4),
+    onSecondary = Color(0xFF332416),
+    secondaryContainer = Color(0xFF382C22),
+    onSecondaryContainer = Color(0xFFEFDFD0),
+    tertiary = Color(0xFFE5B586),
+    onTertiary = Color(0xFF3E2510),
+    background = Color(0xFF000000),
+    onBackground = Color(0xFFF7F1EB),
+    surface = Color(0xFF151210),
+    onSurface = Color(0xFFF7F1EB),
+    surfaceVariant = Color(0xFF201B17),
+    onSurfaceVariant = Color(0xFFC0B3A6),
+    outline = Color(0xFF61564B),
+    error = Color(0xFFFF8A8A)
+)
+
+private val LilacLight = lightColorScheme(
+    primary = Color(0xFF7A5BD6),
+    onPrimary = Color.White,
+    primaryContainer = Color(0xFFEDE7FB),
+    onPrimaryContainer = Color(0xFF3E2A79),
+    secondary = Color(0xFF6C6385),
+    onSecondary = Color.White,
+    secondaryContainer = Color(0xFFEDE9F7),
+    onSecondaryContainer = Color(0xFF40364F),
+    tertiary = Color(0xFF9660B8),
+    onTertiary = Color.White,
+    background = Color(0xFFF8F6FC),
+    onBackground = Color(0xFF17131F),
+    surface = Color(0xFFFFFFFF),
+    onSurface = Color(0xFF17131F),
+    surfaceVariant = Color(0xFFF1EDF8),
+    onSurfaceVariant = Color(0xFF6D657C),
+    outline = Color(0xFFD6CFE2),
+    error = Color(0xFFE5484D)
+)
+
+private val LilacDark = darkColorScheme(
+    primary = Color(0xFFC0A8FF),
+    onPrimary = Color(0xFF311C63),
+    primaryContainer = Color(0xFF35265C),
+    onPrimaryContainer = Color(0xFFE8DEFF),
+    secondary = Color(0xFFC0B4D8),
+    onSecondary = Color(0xFF282036),
+    secondaryContainer = Color(0xFF2E283C),
+    onSecondaryContainer = Color(0xFFE4DBF1),
+    tertiary = Color(0xFFD2A9F2),
+    onTertiary = Color(0xFF3A1F4E),
+    background = Color(0xFF000000),
+    onBackground = Color(0xFFF2EEF9),
+    surface = Color(0xFF131117),
+    onSurface = Color(0xFFF2EEF9),
+    surfaceVariant = Color(0xFF1E1B24),
+    onSurfaceVariant = Color(0xFFB4ACC4),
+    outline = Color(0xFF595266),
+    error = Color(0xFFFF8A8A)
+)
+
+/** 全部可选配色；顺序即设置页的展示顺序 */
+val AppPalettes: List<AppPalette> = listOf(
+    AppPalette(
+        id = 0, label = "石墨", light = GraphiteLight, dark = GraphiteDark,
+        accent = Color(0xFFAAC8EA), accentDeep = Color(0xFF21435A),
+        darkBarAccent = Color(0xFFA2C0E1)
+    ),
+    AppPalette(
+        id = 1, label = "樱花粉", light = SakuraLight, dark = SakuraDark,
+        accent = Color(0xFFF3AFC5), accentDeep = Color(0xFF7A2743),
+        darkBarAccent = Color(0xFFFFB9D2)
+    ),
+    AppPalette(
+        id = 2, label = "海盐蓝", light = OceanLight, dark = OceanDark,
+        accent = Color(0xFFA6C6F2), accentDeep = Color(0xFF1F3F66),
+        darkBarAccent = Color(0xFFA9C8FF)
+    ),
+    AppPalette(
+        id = 3, label = "薄荷绿", light = MintLight, dark = MintDark,
+        accent = Color(0xFFA0DFC8), accentDeep = Color(0xFF1B4F3D),
+        darkBarAccent = Color(0xFF9FE8C9)
+    ),
+    AppPalette(
+        id = 4, label = "暖阳橙", light = SunsetLight, dark = SunsetDark,
+        accent = Color(0xFFF5C79A), accentDeep = Color(0xFF6B3A15),
+        darkBarAccent = Color(0xFFFFCE9C)
+    ),
+    AppPalette(
+        id = 5, label = "紫丁香", light = LilacLight, dark = LilacDark,
+        accent = Color(0xFFC9B6EE), accentDeep = Color(0xFF3E2C6B),
+        darkBarAccent = Color(0xFFCDBBFF)
+    )
+)
+
+/** 按 id 取配色，未知 id 回落到默认「石墨」 */
+fun appPalette(id: Int): AppPalette = AppPalettes.firstOrNull { it.id == id } ?: AppPalettes.first()
+
+/** 该配色 + 明暗的窗口底色（非 Composable，启动窗口设置用） */
+fun paletteBackgroundColor(paletteId: Int, dark: Boolean): Color =
+    if (dark) appPalette(paletteId).dark.background else appPalette(paletteId).light.background
+
 /** 当前主题模式最终是不是深色（0 跟随系统 / 1 浅色 / 2 深色） */
 @Composable
 fun isDarkMode(themeMode: Int): Boolean = when (themeMode) {
@@ -116,17 +396,23 @@ fun isDarkMode(themeMode: Int): Boolean = when (themeMode) {
     else -> isSystemInDarkTheme()
 }
 
-/** 该主题模式下窗口/页面底色，启动窗口与切换过渡都靠它对齐 */
+/** 该主题模式 + 配色下的窗口/页面底色，启动窗口与切换过渡都靠它对齐 */
 @Composable
-fun themeBackgroundColor(themeMode: Int): Color =
-    if (isDarkMode(themeMode)) DarkColors.background else LightColors.background
+fun themeBackgroundColor(themeMode: Int, paletteId: Int = 0): Color =
+    paletteBackgroundColor(paletteId, isDarkMode(themeMode))
 
 /** 主题切换渐变的时长：整套配色同时插值，短了像闪、长了拖沓 */
 private const val THEME_FADE_MS = 450
 
 @Composable
-fun AppTheme(themeMode: Int, liquidGlass: Boolean, content: @Composable () -> Unit) {
-    val target = if (isDarkMode(themeMode)) DarkColors else LightColors
+fun AppTheme(
+    themeMode: Int,
+    paletteId: Int = 0,
+    liquidGlass: Boolean,
+    content: @Composable () -> Unit
+) {
+    val palette = appPalette(paletteId)
+    val target = if (isDarkMode(themeMode)) palette.dark else palette.light
     // 深浅切换：把整套 ColorScheme 从旧配色逐帧插值到新配色。
     // 走主题层而不是全屏遮罩，是因为 Dialog 等独立窗口盖不住，插值才能让弹窗一起渐变。
     var from by remember { mutableStateOf(target) }
@@ -141,7 +427,12 @@ fun AppTheme(themeMode: Int, liquidGlass: Boolean, content: @Composable () -> Un
         progress.animateTo(1f, tween(THEME_FADE_MS, easing = FastOutSlowInEasing))
     }
     val scheme = if (progress.value >= 1f) to else lerpScheme(from, to, progress.value)
-    CompositionLocalProvider(LocalGlass provides liquidGlass) {
+    CompositionLocalProvider(
+        LocalGlass provides liquidGlass,
+        LocalPaletteAccent provides palette.accent,
+        LocalPaletteAccentDeep provides palette.accentDeep,
+        LocalPaletteDarkBarAccent provides palette.darkBarAccent
+    ) {
         MaterialTheme(
             colorScheme = scheme,
             content = content

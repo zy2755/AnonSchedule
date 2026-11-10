@@ -58,6 +58,16 @@ data class ChangeRecord(
     val step: Int = 1
 )
 
+/** 课程待办：挂在某门课（courseId）下的一条计划，勾掉后仍保留记录 */
+@Serializable
+data class CourseTodo(
+    val id: Long,
+    val courseId: Long,
+    val text: String,
+    val done: Boolean = false,
+    val createdAt: Long = 0L
+)
+
 /** 一条成绩记录（从教务抓取，按 学年+学期 累积） */
 @Serializable
 data class GradeBean(
@@ -107,7 +117,10 @@ data class Settings(
     val showTeacherInCell: Boolean = true,      // 在格子内显示授课老师
     // ---- 主题 / 背景 ----
     val themeMode: Int = 0,              // 0=跟随系统 1=浅色 2=深色
+    val themePalette: Int = 0,           // 主题配色 id（见 AppPalette，0=石墨）
+    val appIcon: Int = 0,                // 桌面图标 id（见 AppIcon，0=原版插画）
     val liquidGlass: Boolean = false,    // 液态玻璃
+    val courseTodoEnabled: Boolean = true, // 点开课程时可加待办/规划
     val cardAlphaPercent: Int = 100,     // 卡片背景不透明度 %
     val backgroundPath: String? = null,  // 背景图
     // ---- 提醒 ----
@@ -123,6 +136,7 @@ data class AppState(
     val details: List<DetailBean> = emptyList(),
     val slots: List<TimeSlot> = defaultSlots(),
     val records: List<ChangeRecord> = emptyList(),
+    val todos: List<CourseTodo> = emptyList(),  // 课程待办/规划
     val grades: List<GradeBean> = emptyList(),  // 教务成绩（多学期累积）
     val gradeTabOrder: List<String> = emptyList(),  // 成绩页标签顺序（"学年|学期"），长按调整后保存
     val settings: Settings = Settings()

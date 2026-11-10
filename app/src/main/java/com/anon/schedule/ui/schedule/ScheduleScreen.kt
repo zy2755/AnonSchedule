@@ -62,6 +62,7 @@ import androidx.compose.material3.DropdownMenu
 import androidx.compose.material3.DropdownMenuItem
 import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.FilterChip
+import androidx.compose.material3.Checkbox
 import androidx.compose.material3.HorizontalDivider
 import androidx.compose.material3.Icon
 import androidx.compose.material3.LocalTextStyle
@@ -105,15 +106,18 @@ import androidx.compose.ui.platform.LocalDensity
 import androidx.compose.ui.platform.LocalView
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextAlign
+import androidx.compose.ui.text.style.TextDecoration
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.IntOffset
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.compose.ui.window.Dialog
 import androidx.compose.ui.window.DialogProperties
+import androidx.core.content.FileProvider
 import com.anon.schedule.SubPage
 import com.anon.schedule.data.AppState
 import com.anon.schedule.data.ChangeRecord
+import com.anon.schedule.data.CourseTodo
 import com.anon.schedule.data.DetailBean
 import com.anon.schedule.data.Repo
 import com.anon.schedule.data.Settings
@@ -139,6 +143,7 @@ import com.anon.schedule.widget.TodaySmallWidget
 import com.anon.schedule.widget.TodayTomorrowWidget
 import com.anon.schedule.widget.TodayWideWidget
 import java.time.format.DateTimeFormatter
+import java.io.File
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.flow.collect
 import kotlinx.coroutines.flow.first
@@ -344,7 +349,9 @@ fun ScheduleScreen(
                         Repo.update { s ->
                             s.copy(
                                 courses = s.courses.filterNot { it.id == target.course.id },
-                                details = s.details.filterNot { it.courseId == target.course.id }
+                                details = s.details.filterNot { it.courseId == target.course.id },
+                                // 课程没了，挂在它上面的待办一起清掉，避免留下孤儿数据
+                                todos = s.todos.filterNot { it.courseId == target.course.id }
                             )
                         }
                     }
@@ -1309,6 +1316,105 @@ fun CourseDetailSheet(
                         DetailRow(Icons.Default.AccessTime, "节次时间", timeText)
                         DetailRow(Icons.Default.Person, "授课教师", shown.detail.teacher.ifBlank { "未填写" })
                         DetailRow(Icons.Default.Place, "上课地点", shown.detail.room.ifBlank { "未填写" })
+                        // ---- 课程待办 / 规划（设置里可整块关掉）----
+                        // 注意：设置页的开关写的是「当前课表」的 settings，
+                        // 这里也必须读 tableSettings()，读全局 st.settings 会永远拿到默认值。
+                        if (st.tableSettings().courseTodoEnabled) {
+                            HorizontalDivider(Modifier.padding(top = 16.dp, bottom = 12.dp))
+                            val todos = st.todos.filter { it.courseId == shown.course.id }
+                            // 未勾掉的排在前面，其余按添加顺序
+                            val ordered = todos.sortedWith(compareBy({ it.done }, { it.createdAt }))
+                            var draft by remember(shown.course.id) { mutableStateOf("") }
+                            Row(verticalAlignment = Alignment.CenterVertically) {
+                                Text(
+                                    "课程待办",
+                                    style = MaterialTheme.typography.titleSmall,
+                                    fontWeight = FontWeight.Bold
+                                )
+                                Spacer(Modifier.width(8.dp))
+                                Text(
+                                    "${todos.count { it.done }}/${todos.size}",
+                                    style = MaterialTheme.typography.labelMedium,
+                                    color = MaterialTheme.colorScheme.onSurfaceVariant
+                                )
+                            }
+                            if (ordered.isEmpty()) {
+                                Text(
+                                    "还没有计划，给自己加一条吧",
+                                    style = MaterialTheme.typography.bodySmall,
+                                    color = MaterialTheme.colorScheme.onSurfaceVariant,
+                                    modifier = Modifier.padding(vertical = 6.dp)
+                                )
+                            }
+                            ordered.forEach { todo ->
+                                Row(
+                                    Modifier.fillMaxWidth(),
+                                    verticalAlignment = Alignment.CenterVertically
+                                ) {
+                                    Checkbox(
+                                        checked = todo.done,
+                                        onCheckedChange = { checked ->
+                                            Repo.update { s ->
+                                                s.copy(todos = s.todos.map {
+                                                    if (it.id == todo.id) it.copy(done = checked) else it
+                                                })
+                                            }
+                                        }
+                                    )
+                                    Text(
+                                        todo.text,
+                                        style = MaterialTheme.typography.bodyMedium,
+                                        textDecoration = if (todo.done) TextDecoration.LineThrough else null,
+                                        color = if (todo.done) MaterialTheme.colorScheme.onSurfaceVariant
+                                        else MaterialTheme.colorScheme.onSurface,
+                                        modifier = Modifier.weight(1f)
+                                    )
+                                    IconButton(onClick = {
+                                        Repo.update { s ->
+                                            s.copy(todos = s.todos.filterNot { it.id == todo.id })
+                                        }
+                                    }) {
+                                        Icon(
+                                            Icons.Default.Delete,
+                                            contentDescription = "删除待办",
+                                            modifier = Modifier.size(18.dp),
+                                            tint = MaterialTheme.colorScheme.onSurfaceVariant
+                                        )
+                                    }
+                                }
+                            }
+                            Row(verticalAlignment = Alignment.CenterVertically) {
+                                OutlinedTextField(
+                                    value = draft,
+                                    onValueChange = { draft = it },
+                                    modifier = Modifier.weight(1f),
+                                    placeholder = { Text("加一条计划，比如「交作业」") },
+                                    singleLine = true,
+                                    textStyle = MaterialTheme.typography.bodyMedium
+                                )
+                                IconButton(
+                                    onClick = {
+                                        val text = draft.trim()
+                                        if (text.isNotEmpty()) {
+                                            Repo.update { s ->
+                                                s.copy(
+                                                    todos = s.todos + CourseTodo(
+                                                        id = Repo.nextId(),
+                                                        courseId = shown.course.id,
+                                                        text = text,
+                                                        createdAt = System.currentTimeMillis()
+                                                    )
+                                                )
+                                            }
+                                            draft = ""
+                                        }
+                                    },
+                                    enabled = draft.isNotBlank()
+                                ) {
+                                    Icon(Icons.Default.Add, contentDescription = "添加待办")
+                                }
+                            }
+                        }
                     }
                 }
             }
@@ -1347,11 +1453,15 @@ fun MoreSheet(
     var newTableName by remember { mutableStateOf("") }
     var editingWeek by remember { mutableStateOf(false) }
     var weekText by remember { mutableStateOf(s.currentWeek.toString()) }
+    var showShareOptions by remember { mutableStateOf(false) }
     val dark = st.settings.themeMode == 2
 
     ModalBottomSheet(
         onDismissRequest = onDismiss,
-        sheetState = rememberModalBottomSheetState(skipPartiallyExpanded = true)
+        sheetState = rememberModalBottomSheetState(skipPartiallyExpanded = true),
+        // 内容自己可滚动时，面板再抢竖直手势会和内容卷动互相拉扯（上滑一下又被弹回）。
+        // 关掉面板自身的拖拽，竖直手势全部交给内容；关闭走点外部 / 返回键。
+        sheetGesturesEnabled = false
     ) {
         Column(
             Modifier
@@ -1527,8 +1637,8 @@ fun MoreSheet(
                     icon = Icons.Default.Share,
                     tileColor = TileCyan,
                     title = "分享课表",
-                    subtitle = "把本周课表整理成文字发给同学",
-                    onClick = { onDismiss(); shareTimetable(ctx, st, s.currentWeek) }
+                    subtitle = "文字发给同学，或导出 CSV 文件",
+                    onClick = { showShareOptions = true }
                 )
             }
         }
@@ -1574,6 +1684,53 @@ fun MoreSheet(
                 }) { Text("创建") }
             },
             dismissButton = { TextButton(onClick = { addingTable = false }) { Text("取消") } }
+        )
+    }
+
+    if (showShareOptions) {
+        AlertDialog(
+            onDismissRequest = { showShareOptions = false },
+            title = { Text("分享课表") },
+            text = {
+                Column(Modifier.fillMaxWidth()) {
+                    Text(
+                        "第 ${s.currentWeek} 周 · ${st.tables.firstOrNull { it.id == st.currentTableId }?.name ?: "我的课表"}",
+                        style = MaterialTheme.typography.bodySmall,
+                        color = MaterialTheme.colorScheme.onSurfaceVariant
+                    )
+                    Spacer(Modifier.height(8.dp))
+                    ShareMethodRow(
+                        title = "纯文字",
+                        subtitle = "整理成一段文字，直接发到聊天窗口",
+                        onClick = {
+                            showShareOptions = false
+                            shareTimetable(ctx, st, s.currentWeek)
+                            onDismiss()
+                        }
+                    )
+                    ShareMethodRow(
+                        title = "CSV 文件",
+                        subtitle = "生成 .csv，可拖进 Excel / WPS 打开或再导入",
+                        onClick = {
+                            showShareOptions = false
+                            shareTimetableCsv(ctx, st, s.currentWeek)
+                            onDismiss()
+                        }
+                    )
+                    ShareMethodRow(
+                        title = "整学期 CSV",
+                        subtitle = "全部课程含起止周与单双周，适合导入其它课表 App",
+                        onClick = {
+                            showShareOptions = false
+                            shareTimetableFullCsv(ctx, st)
+                            onDismiss()
+                        }
+                    )
+                }
+            },
+            confirmButton = {
+                TextButton(onClick = { showShareOptions = false }) { Text("取消") }
+            }
         )
     }
 
@@ -1667,6 +1824,114 @@ private fun shareTimetable(ctx: Context, st: AppState, week: Int) {
         putExtra(Intent.EXTRA_TEXT, sb.toString())
     }
     ctx.startActivity(Intent.createChooser(intent, "分享课表"))
+}
+
+/** 分享方式的一行（纯文字 / CSV 文件） */
+@Composable
+private fun ShareMethodRow(title: String, subtitle: String, onClick: () -> Unit) {
+    Column(
+        Modifier
+            .fillMaxWidth()
+            .clip(RoundedCornerShape(12.dp))
+            .clickable(onClick = onClick)
+            .padding(vertical = 10.dp, horizontal = 4.dp)
+    ) {
+        Text(title, style = MaterialTheme.typography.bodyLarge, fontWeight = FontWeight.SemiBold)
+        Text(
+            subtitle,
+            style = MaterialTheme.typography.bodySmall,
+            color = MaterialTheme.colorScheme.onSurfaceVariant
+        )
+    }
+}
+
+/** CSV 单元格转义：含逗号 / 引号 / 换行时用双引号包起来，内部引号翻倍 */
+private fun csvCell(value: String): String =
+    if (value.contains(',') || value.contains('"') || value.contains('\n')) {
+        "\"" + value.replace("\"", "\"\"") + "\""
+    } else value
+
+/**
+ * 把某一周的课表导出成 CSV 文件再分享。
+ * 列：日期,星期,开始时间,结束时间,课程,教师,地点（Excel / WPS 可直接打开）。
+ * 文件写到 cache/share/ 下，通过 FileProvider 以 content:// 交给分享面板。
+ */
+private fun shareTimetableCsv(ctx: Context, st: AppState, week: Int) {
+    val tableId = st.currentTableId
+    val tableName = st.tables.firstOrNull { it.id == tableId }?.name ?: "我的课表"
+    val dayNames = listOf("周一", "周二", "周三", "周四", "周五", "周六", "周日")
+    val fmt = DateTimeFormatter.ofPattern("M.d")
+    // BOM 开头，Excel 打开中文才不会乱码
+    val csv = StringBuilder("\uFEFF日期,星期,开始时间,结束时间,课程,教师,地点\r\n")
+
+    for (day in 1..7) {
+        val date = Repo.dateOfWeekDay(st, week, day, tableId) ?: continue
+        val courses = Repo.dayCourses(st, date, week, tableId).sortedBy { it.detail.startNode }
+        for (sc in courses) {
+            val start = st.slots.getOrNull(sc.detail.startNode - 1)?.start.orEmpty()
+            val end = st.slots.getOrNull(sc.detail.startNode + sc.detail.step - 2)?.end.orEmpty()
+            csv.append(csvCell(date.format(fmt))).append(',')
+                .append(csvCell(dayNames[day - 1])).append(',')
+                .append(csvCell(start)).append(',')
+                .append(csvCell(end)).append(',')
+                .append(csvCell(sc.course.name)).append(',')
+                .append(csvCell(sc.detail.teacher)).append(',')
+                .append(csvCell(sc.detail.room)).append("\r\n")
+        }
+    }
+
+    val safeName = tableName.replace(Regex("[\\\\/:*?\"<>|]"), "_")
+    shareCsv(ctx, "${safeName}_第${week}周.csv", csv.toString(), "$tableName 第 $week 周课表")
+}
+
+/**
+ * 整学期课表导出：一条课程安排一行，带上起止周与单双周。
+ * 和「当前周」那份的区别是它不展开到具体日期，适合交换数据 / 导入其它课表 App。
+ */
+private fun shareTimetableFullCsv(ctx: Context, st: AppState) {
+    val tableId = st.currentTableId
+    val tableName = st.tables.firstOrNull { it.id == tableId }?.name ?: "我的课表"
+    val dayNames = listOf("周一", "周二", "周三", "周四", "周五", "周六", "周日")
+    val typeNames = listOf("每周", "单周", "双周")
+    val csv = StringBuilder("\uFEFF课程,教师,地点,星期,开始节次,结束节次,开始时间,结束时间,起始周,结束周,周次\r\n")
+
+    st.details.filter { it.tableId == tableId }
+        .sortedWith(compareBy({ it.day }, { it.startNode }))
+        .forEach { d ->
+            val course = st.courses.firstOrNull { it.id == d.courseId } ?: return@forEach
+            val start = st.slots.getOrNull(d.startNode - 1)?.start.orEmpty()
+            val end = st.slots.getOrNull(d.startNode + d.step - 2)?.end.orEmpty()
+            csv.append(csvCell(course.name)).append(',')
+                .append(csvCell(d.teacher)).append(',')
+                .append(csvCell(d.room)).append(',')
+                .append(csvCell(dayNames.getOrElse(d.day - 1) { "" })).append(',')
+                .append(d.startNode).append(',')
+                .append(d.startNode + d.step - 1).append(',')
+                .append(csvCell(start)).append(',')
+                .append(csvCell(end)).append(',')
+                .append(d.startWeek).append(',')
+                .append(d.endWeek).append(',')
+                .append(csvCell(typeNames.getOrElse(d.type) { "每周" })).append("\r\n")
+        }
+
+    val safeName = tableName.replace(Regex("[\\\\/:*?\"<>|]"), "_")
+    shareCsv(ctx, "${safeName}_全学期.csv", csv.toString(), "$tableName 全学期课表")
+}
+
+/** 把 CSV 文本写到缓存目录并唤起系统分享面板 */
+private fun shareCsv(ctx: Context, fileName: String, content: String, subject: String) {
+    val dir = File(ctx.cacheDir, "share").apply { mkdirs() }
+    val file = File(dir, fileName)
+    file.writeText(content, Charsets.UTF_8)
+
+    val uri = FileProvider.getUriForFile(ctx, "${ctx.packageName}.fileprovider", file)
+    val intent = Intent(Intent.ACTION_SEND).apply {
+        type = "text/csv"
+        putExtra(Intent.EXTRA_STREAM, uri)
+        putExtra(Intent.EXTRA_SUBJECT, subject)
+        addFlags(Intent.FLAG_GRANT_READ_URI_PERMISSION)
+    }
+    ctx.startActivity(Intent.createChooser(intent, "分享课表 CSV"))
 }
 
 /**

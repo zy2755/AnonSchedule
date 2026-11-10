@@ -6,7 +6,9 @@ import android.widget.Toast
 import androidx.activity.compose.rememberLauncherForActivityResult
 import androidx.activity.result.contract.ActivityResultContracts
 import androidx.compose.foundation.background
+import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
+import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
@@ -15,13 +17,18 @@ import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
+import androidx.compose.foundation.layout.size
+import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.AccessTime
+import androidx.compose.material.icons.filled.Apps
 import androidx.compose.material.icons.filled.Backup
 import androidx.compose.material.icons.filled.CalendarMonth
+import androidx.compose.material.icons.filled.Check
+import androidx.compose.material.icons.filled.ColorLens
 import androidx.compose.material.icons.filled.DarkMode
 import androidx.compose.material.icons.filled.DateRange
 import androidx.compose.material.icons.filled.Image
@@ -38,6 +45,7 @@ import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.DatePicker
 import androidx.compose.material3.DatePickerDialog
 import androidx.compose.material3.ExperimentalMaterial3Api
+import androidx.compose.material3.Icon
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.RadioButton
 import androidx.compose.material3.Scaffold
@@ -58,13 +66,18 @@ import androidx.compose.ui.graphics.luminance
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
+import androidx.compose.ui.unit.sp
 import androidx.compose.ui.window.Dialog
 import androidx.compose.ui.window.DialogProperties
 import com.anon.schedule.SubPage
+import com.anon.schedule.data.AppIcon
 import com.anon.schedule.data.Repo
 import com.anon.schedule.data.tableSettings
 import com.anon.schedule.notify.ClassReminder
 import com.anon.schedule.ui.common.GroupCard
+import com.anon.schedule.ui.theme.AppPalette
+import com.anon.schedule.ui.theme.AppPalettes
+import com.anon.schedule.ui.theme.appPalette
 import com.anon.schedule.ui.common.GroupLabel
 import com.anon.schedule.ui.common.GroupRow
 import com.anon.schedule.ui.common.NumberPickerDialog
@@ -96,6 +109,7 @@ fun SettingsScreen(onBack: () -> Unit, onOpenSub: (SubPage) -> Unit) {
     var showCurrentWeek by remember { mutableStateOf(false) }
     var showStartDay by remember { mutableStateOf(false) }
     var showThemeSheet by remember { mutableStateOf(false) }
+    var showPaletteSheet by remember { mutableStateOf(false) }
     var showBackup by remember { mutableStateOf(false) }
     var showLeadPicker by remember { mutableStateOf(false) }
     var showExactAlarmHint by remember { mutableStateOf(false) }
@@ -288,6 +302,22 @@ fun SettingsScreen(onBack: () -> Unit, onOpenSub: (SubPage) -> Unit) {
                     onClick = { onOpenSub(SubPage.Quick) }
                 )
                 GroupRow(
+                    icon = Icons.Default.Check,
+                    tileColor = TileCyan,
+                    title = "课程待办",
+                    subtitle = if (settings.courseTodoEnabled)
+                        "点开课程可以加待办、勾掉已完成"
+                    else "关闭后课程详情里不显示待办",
+                    trailing = {
+                        PillSwitch(
+                            checked = settings.courseTodoEnabled,
+                            onCheckedChange = { on ->
+                                Repo.updateSettings { s -> s.copy(courseTodoEnabled = on) }
+                            }
+                        )
+                    }
+                )
+                GroupRow(
                     icon = Icons.Default.Backup,
                     tileColor = TileCyan,
                     title = "备份与恢复",
@@ -341,8 +371,8 @@ fun SettingsScreen(onBack: () -> Unit, onOpenSub: (SubPage) -> Unit) {
                     tileColor = TilePurple,
                     title = "液态玻璃",
                     subtitle = if (global.liquidGlass)
-                        "开启：卡片与底栏真模糊，滑块可调玻璃实度"
-                    else "关闭：无模糊纯色卡片，滑块仍可调不透明度",
+                        "开启：底部导航栏真模糊 + 边缘折射"
+                    else "关闭：仅普通磨砂，滑块可调卡片不透明度",
                     trailing = {
                         PillSwitch(
                             checked = global.liquidGlass,
@@ -364,6 +394,13 @@ fun SettingsScreen(onBack: () -> Unit, onOpenSub: (SubPage) -> Unit) {
                     onClick = { showThemeSheet = true }
                 )
                 GroupRow(
+                    icon = Icons.Default.ColorLens,
+                    tileColor = TileCyan,
+                    title = "主题配色",
+                    subtitle = "${appPalette(global.themePalette).label} · 明暗模式自动适配",
+                    onClick = { showPaletteSheet = true }
+                )
+                GroupRow(
                     icon = Icons.Default.Image,
                     tileColor = TileGreen,
                     title = "背景图",
@@ -376,6 +413,13 @@ fun SettingsScreen(onBack: () -> Unit, onOpenSub: (SubPage) -> Unit) {
                             }) { Text("清除") }
                         }
                     }
+                )
+                GroupRow(
+                    icon = Icons.Default.Apps,
+                    tileColor = TileCyan,
+                    title = "软件图标",
+                    subtitle = AppIcon.of(global.appIcon).label,
+                    onClick = { onOpenSub(SubPage.AppIcon) }
                 )
             }
 
@@ -548,8 +592,9 @@ fun SettingsScreen(onBack: () -> Unit, onOpenSub: (SubPage) -> Unit) {
         val darkDialog = MaterialTheme.colorScheme.surface.luminance() < 0.5f
         val dialogBg = if (darkDialog) Color(0xFF1E1B21) else MaterialTheme.colorScheme.surface
         val optionBg = if (darkDialog) Color(0xFF2C2C31) else Color(0xFFF1F1F3)
-        val selectedBg = Color(0xFFA8C7FA)
-        val selectedFg = Color(0xFF0A305F)
+        // 选中项跟着当前配色走，不再固定 NPatch 蓝
+        val selectedBg = MaterialTheme.colorScheme.primaryContainer
+        val selectedFg = MaterialTheme.colorScheme.onPrimaryContainer
         Dialog(
             onDismissRequest = { showThemeSheet = false },
             properties = DialogProperties(usePlatformDefaultWidth = false)
@@ -612,6 +657,151 @@ fun SettingsScreen(onBack: () -> Unit, onOpenSub: (SubPage) -> Unit) {
                         style = MaterialTheme.typography.bodyLarge,
                         fontWeight = FontWeight.Medium,
                         color = MaterialTheme.colorScheme.onSurface
+                    )
+                }
+            }
+        }
+    }
+
+    if (showPaletteSheet) {
+        val darkDialog = MaterialTheme.colorScheme.surface.luminance() < 0.5f
+        val dialogBg = if (darkDialog) Color(0xFF1E1B21) else MaterialTheme.colorScheme.surface
+        val optionBg = if (darkDialog) Color(0xFF2C2C31) else Color(0xFFF1F1F3)
+        Dialog(
+            onDismissRequest = { showPaletteSheet = false },
+            properties = DialogProperties(usePlatformDefaultWidth = false)
+        ) {
+            Column(
+                Modifier
+                    .fillMaxWidth()
+                    .padding(horizontal = 24.dp)
+                    .clip(RoundedCornerShape(28.dp))
+                    .background(dialogBg)
+                    .padding(horizontal = 18.dp, vertical = 22.dp)
+            ) {
+                Text(
+                    "主题配色",
+                    style = MaterialTheme.typography.titleLarge,
+                    fontWeight = FontWeight.Bold,
+                    color = MaterialTheme.colorScheme.onSurface
+                )
+                Spacer(Modifier.height(8.dp))
+                Text(
+                    "配色会跟着浅色 / 深色模式自动适配，背景图与液态玻璃设置保持不变。",
+                    style = MaterialTheme.typography.bodyMedium.copy(lineHeight = 20.sp),
+                    color = MaterialTheme.colorScheme.onSurfaceVariant
+                )
+                Spacer(Modifier.height(18.dp))
+                // 3 列色卡：每行最多 3 个，不足的用等宽占位撑住对齐
+                AppPalettes.chunked(3).forEach { rowPalettes ->
+                    Row(
+                        modifier = Modifier.fillMaxWidth(),
+                        horizontalArrangement = Arrangement.spacedBy(8.dp)
+                    ) {
+                        rowPalettes.forEach { palette ->
+                            PaletteSwatch(
+                                palette = palette,
+                                selected = global.themePalette == palette.id,
+                                background = optionBg,
+                                modifier = Modifier.weight(1f)
+                            ) {
+                                Repo.update { s ->
+                                    s.copy(settings = s.settings.copy(themePalette = palette.id))
+                                }
+                            }
+                        }
+                        repeat(3 - rowPalettes.size) { Spacer(Modifier.weight(1f)) }
+                    }
+                    Spacer(Modifier.height(8.dp))
+                }
+                Spacer(Modifier.height(4.dp))
+                Box(
+                    Modifier
+                        .fillMaxWidth()
+                        .clip(RoundedCornerShape(22.dp))
+                        .background(optionBg)
+                        .clickable { showPaletteSheet = false }
+                        .padding(vertical = 14.dp),
+                    contentAlignment = Alignment.Center
+                ) {
+                    Text(
+                        "完成",
+                        style = MaterialTheme.typography.bodyLarge,
+                        fontWeight = FontWeight.Medium,
+                        color = MaterialTheme.colorScheme.onSurface
+                    )
+                }
+            }
+        }
+    }
+}
+
+/** 配色色卡：三个圆点预览 + 名称，选中时用当前配色的容器色托底 */
+@Composable
+private fun PaletteSwatch(
+    palette: AppPalette,
+    selected: Boolean,
+    background: Color,
+    modifier: Modifier = Modifier,
+    onClick: () -> Unit
+) {
+    val shape = RoundedCornerShape(18.dp)
+    Column(
+        modifier = modifier
+            .clip(shape)
+            .background(if (selected) MaterialTheme.colorScheme.primaryContainer else background)
+            .then(
+                if (selected) Modifier.border(
+                    width = 1.5.dp,
+                    color = MaterialTheme.colorScheme.primary.copy(alpha = 0.55f),
+                    shape = shape
+                ) else Modifier
+            )
+            .clickable(onClick = onClick)
+            .padding(vertical = 12.dp),
+        horizontalAlignment = Alignment.CenterHorizontally
+    ) {
+        Row(horizontalArrangement = Arrangement.spacedBy(5.dp)) {
+            palette.preview.forEach { c ->
+                Box(
+                    Modifier
+                        .size(16.dp)
+                        .clip(CircleShape)
+                        .background(c)
+                        .border(
+                            width = 0.5.dp,
+                            color = MaterialTheme.colorScheme.outline.copy(alpha = 0.4f),
+                            shape = CircleShape
+                        )
+                )
+            }
+        }
+        Spacer(Modifier.height(8.dp))
+        Text(
+            palette.label,
+            style = MaterialTheme.typography.bodySmall,
+            fontWeight = FontWeight.SemiBold,
+            color = if (selected) MaterialTheme.colorScheme.onPrimaryContainer
+            else MaterialTheme.colorScheme.onSurface,
+            maxLines = 1
+        )
+        // 固定高度的选中标记位：有/无都占同样高度，三列卡片不会高低不齐
+        Box(Modifier.height(14.dp), contentAlignment = Alignment.Center) {
+            if (selected) {
+                Row(
+                    verticalAlignment = Alignment.CenterVertically,
+                    horizontalArrangement = Arrangement.spacedBy(2.dp)
+                ) {
+                    Icon(
+                        Icons.Default.Check,
+                        contentDescription = null,
+                        tint = MaterialTheme.colorScheme.onPrimaryContainer,
+                        modifier = Modifier.size(12.dp)
+                    )
+                    Text(
+                        "使用中",
+                        style = MaterialTheme.typography.labelSmall,
+                        color = MaterialTheme.colorScheme.onPrimaryContainer.copy(alpha = 0.85f)
                     )
                 }
             }

@@ -55,6 +55,7 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.draw.drawBehind
+import androidx.compose.ui.draw.drawWithContent
 import androidx.compose.ui.draw.shadow
 import androidx.compose.ui.focus.FocusRequester
 import androidx.compose.ui.focus.focusRequester
@@ -63,7 +64,11 @@ import androidx.compose.ui.geometry.Offset
 import androidx.compose.ui.geometry.Size
 import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.graphics.Path
+import androidx.compose.ui.graphics.Shape
+import androidx.compose.ui.graphics.addOutline
 import androidx.compose.ui.graphics.drawscope.Stroke
+import androidx.compose.ui.graphics.drawscope.clipPath
 import androidx.compose.ui.graphics.luminance
 import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.input.pointer.pointerInput
@@ -81,19 +86,18 @@ import androidx.compose.runtime.rememberUpdatedState
 import kotlin.math.abs
 import kotlin.math.roundToInt
 import com.anon.schedule.ui.theme.LocalCardAlpha
-import com.anon.schedule.ui.theme.LocalGlass
 import com.anon.schedule.ui.theme.LocalHasBackground
+import com.anon.schedule.ui.theme.LocalPaletteAccent
+import com.anon.schedule.ui.theme.LocalPaletteAccentDeep
 import com.anon.schedule.ui.theme.LocalWallpaperHaze
 import dev.chrisbanes.haze.HazeStyle
 import dev.chrisbanes.haze.HazeTint
 import dev.chrisbanes.haze.LocalHazeStyle
 import dev.chrisbanes.haze.hazeEffect
 
-// ---- Expressive 滑块配色（采样自 NPatch 实拍：浅蓝轨 #AAC8EA + 深蓝点 #21435A）----
-// 项目主色在浅色主题下接近纯黑，直接拿去当填充会变成一条生硬的墨条；
-// 所以滑块单独用这组柔和的蓝，想换品牌色只改这两个值。
-private val SLIDER_FILL = Color(0xFFAAC8EA)
-private val SLIDER_THUMB = Color(0xFF21435A)
+// ---- Expressive 滑块配色（采样自 NPatch 实拍：浅蓝轨 + 深蓝点）----
+// 填充与圆点改用当前主题配色的点缀色（见 Theme.kt 的 LocalPaletteAccent / LocalPaletteAccentDeep），
+// 轨道保持中性，避免跟着配色变脏。
 private val SLIDER_TRACK_LIGHT = Color(0xFFE3E6EC)
 private val SLIDER_TRACK_DARK = Color(0xFF2C313C)
 
@@ -118,16 +122,16 @@ fun GlassCard(
     contentPadding: PaddingValues = PaddingValues(16.dp),
     content: @Composable ColumnScope.() -> Unit
 ) {
-    val glass = LocalGlass.current
     val hasBg = LocalHasBackground.current
-    // 卡片专用采样源：只含壁纸，不含其它卡片
+    // 卡片专用采样源：只含壁纸，不含其它卡片（有背景图时提供）
     val haze = LocalWallpaperHaze.current
     val shape = RoundedCornerShape(20.dp)
     val surfaceColor = MaterialTheme.colorScheme.surface
     val darkCard = surfaceColor.luminance() < 0.5f
     // 平台能不能真模糊由 Haze 自己判断（API 31 已知 RenderNode 问题会默认禁用，
-    // 更低版本走 scrim）；这里只管「用户有没有开玻璃」。
-    val realGlass = glass && haze != null
+    // 更低版本走 scrim）。卡片只做「普通磨砂」，液态玻璃开关不再影响卡片，
+    // 这样不开启液态玻璃时，不透明度滑杆也能实时生效。
+    val realGlass = haze != null
     // 注意：这里拿到的是 State，不是 Float；只在 draw 阶段读，避免拖动时整卡重组
     val alphaState = LocalCardAlpha.current
     // 玻璃配方固定：拖动滑块时绝不能重建 HazeStyle，否则每帧都要重新录制并模糊
@@ -149,17 +153,21 @@ fun GlassCard(
     val cardBackdrop = Modifier.drawBehind {
         val a = alphaState.value
         val overlay = ((a - 0.4f) / 0.6f).coerceIn(0f, 1f)
-        val bgAlpha = when {
-            !glass -> 1f
-            realGlass -> 0.02f + 0.90f * overlay
-            else -> (if (hasBg) 0.86f else 0.60f) * a
-        }
+        // 有背景图 → 磨砂；没有背景图 → 实色卡片也照样吃滑杆
+        val bgAlpha = if (realGlass) 0.02f + 0.90f * overlay else a
         drawRoundRect(
             color = surfaceColor.copy(alpha = bgAlpha),
             cornerRadius = CornerRadius(20.dp.toPx())
         )
     }
-    // 描边：深色卡片用白色高光；浅色卡片改用 outline 灰线，保证「框」在浅底上也看得见
+    // 玻璃层：用固定的卡片专用 style 覆盖全局配方，
+    // blurRadius / noise 仍继承 MainActivity 里 provide 的 LocalHazeStyle。
+    val glassModifier = if (realGlass) {
+        Modifier.hazeEffect(state = haze, style = cardStyle)
+    } else {
+        Modifier
+    }
+    // 描边：磨砂卡片用极淡边光；有背景但平台不支持模糊时用半透明渐变+灰线兜底
     val borderBrush = if (darkCard) Brush.verticalGradient(
         listOf(Color.White.copy(alpha = 0.55f), Color.White.copy(alpha = 0.12f))
     ) else Brush.verticalGradient(
@@ -168,13 +176,6 @@ fun GlassCard(
             MaterialTheme.colorScheme.outline.copy(alpha = 0.35f)
         )
     )
-    // 玻璃层：用固定的卡片专用 style 覆盖全局配方，
-    // blurRadius / noise 仍继承 MainActivity 里 provide 的 LocalHazeStyle。
-    val glassModifier = if (realGlass) {
-        Modifier.hazeEffect(state = haze, style = cardStyle)
-    } else {
-        Modifier
-    }
     Surface(
         shape = shape,
         color = Color.Transparent,
@@ -188,14 +189,15 @@ fun GlassCard(
                 .then(cardBackdrop)
                 .then(
                     when {
-                        // 真玻璃只留一圈极淡的边光，不再叠方向高光 / 色散 / 投影
+                        // 普通磨砂卡片只留一圈极淡边光，不叠液态玻璃的光学层
                         realGlass -> Modifier.border(
                             width = 0.5.dp,
                             color = if (darkCard) Color.White.copy(alpha = 0.12f)
                             else MaterialTheme.colorScheme.outline.copy(alpha = 0.22f),
                             shape = shape
                         )
-                        glass && !realGlass -> Modifier
+                        // 有背景图但平台不支持模糊：半透明渐变 + 灰线兜底
+                        hasBg -> Modifier
                             .background(
                                 brush = Brush.verticalGradient(
                                     listOf(Color.White.copy(alpha = 0.10f), Color.Transparent)
@@ -204,7 +206,7 @@ fun GlassCard(
                             )
                             .border(width = 1.dp, brush = borderBrush, shape = shape)
                         // 深色实心卡片落在纯黑底上，补一条极淡白描边托住边界
-                        !glass && darkCard -> Modifier
+                        darkCard -> Modifier
                             .border(width = 1.dp, color = Color.White.copy(alpha = 0.06f), shape = shape)
                         else -> Modifier
                     }
@@ -213,6 +215,81 @@ fun GlassCard(
             content = content
         )
     }
+}
+
+/**
+ * 液态玻璃的「光学边缘」（参考 liquid-glass-web 的四层叠加）：
+ * 顶部镜面反光、底部内阴影（厚度感）、左右 RGB 色散、上亮下暗的轮廓边光。
+ * 浏览器里的真实背景位移（feDisplacementMap）在 Compose 无法作用到 Haze 采样结果，
+ * 这里用光学层近似「边缘一圈被折弯」的观感。
+ */
+fun Modifier.liquidGlassFinish(
+    shape: Shape,
+    dark: Boolean,
+    pressed: Boolean = false
+): Modifier = drawWithContent {
+    val outline = shape.createOutline(size, layoutDirection, this)
+    val path = Path().apply { addOutline(outline) }
+    drawContent()
+
+    // 镜面高光 + 底部内阴影，都裁进玻璃轮廓内
+    clipPath(path) {
+        drawRect(
+            brush = Brush.radialGradient(
+                colors = listOf(
+                    Color.White.copy(alpha = if (dark) 0.13f else 0.17f),
+                    Color.Transparent
+                ),
+                center = Offset(size.width * 0.28f, size.height * 0.04f),
+                radius = size.maxDimension * 0.95f
+            )
+        )
+        drawRect(
+            brush = Brush.verticalGradient(
+                0f to Color.Transparent,
+                0.62f to Color.Transparent,
+                1f to Color.Black.copy(
+                    alpha = when {
+                        dark && pressed -> 0.30f
+                        dark -> 0.22f
+                        pressed -> 0.12f
+                        else -> 0.08f
+                    }
+                )
+            )
+        )
+    }
+
+    // 色散：左缘偏暖、右缘偏冷，中段完全透明，只在轮廓上留一点点 RGB 分离
+    val fringeAlpha = if (dark) 0.16f else 0.12f
+    drawPath(
+        path = path,
+        brush = Brush.horizontalGradient(
+            0f to Color(0xFFFF6E8E).copy(alpha = fringeAlpha),
+            0.30f to Color(0xFFFF6E8E).copy(alpha = 0f),
+            0.70f to Color(0xFF35C8FF).copy(alpha = 0f),
+            1f to Color(0xFF35C8FF).copy(alpha = fringeAlpha)
+        ),
+        style = Stroke(width = 1.4.dp.toPx())
+    )
+
+    // 轮廓边光：上亮下暗；按下时加亮加粗，像被压紧后折光更强
+    val rimTop = when {
+        dark && pressed -> 0.62f
+        dark -> 0.44f
+        pressed -> 0.95f
+        else -> 0.70f
+    }
+    drawPath(
+        path = path,
+        brush = Brush.verticalGradient(
+            listOf(
+                Color.White.copy(alpha = rimTop),
+                Color.White.copy(alpha = if (dark) 0.06f else 0.18f)
+            )
+        ),
+        style = Stroke(width = if (pressed) 1.6.dp.toPx() else 1.1.dp.toPx())
+    )
 }
 
 @Composable
@@ -481,6 +558,9 @@ fun GradientSlider(
     val dark = MaterialTheme.colorScheme.surface.luminance() < 0.5f
     // 未填充轨道：深色下深蓝灰、浅色下中性浅灰，都不抢填充段
     val trackBase = if (dark) SLIDER_TRACK_DARK else SLIDER_TRACK_LIGHT
+    // 填充 / 圆点跟随当前主题配色
+    val sliderFill = LocalPaletteAccent.current
+    val sliderThumb = LocalPaletteAccentDeep.current
     val range = valueRange.endInclusive - valueRange.start
     val fraction = if (range <= 0f) 0f else ((value - valueRange.start) / range).coerceIn(0f, 1f)
     var widthPx by remember { mutableFloatStateOf(0f) }
@@ -569,14 +649,14 @@ fun GradientSlider(
             val fillW = (cx + insetPx).coerceAtMost(trackW)
             if (fillW > 0f) {
                 drawRoundRect(
-                    color = SLIDER_FILL,
+                    color = sliderFill,
                     topLeft = Offset(0f, top),
                     size = Size(fillW, trackH),
                     cornerRadius = corner
                 )
             }
-            // 3) 内嵌实心圆点：onPrimary 自动与填充段反相，NPatch 就是浅蓝轨 + 深蓝点
-            drawCircle(SLIDER_THUMB, radius = thumbR, center = Offset(cx, cy))
+            // 3) 内嵌实心圆点：配色里的深色点缀，和填充段形成柔和反差
+            drawCircle(sliderThumb, radius = thumbR, center = Offset(cx, cy))
         }
     }
 }

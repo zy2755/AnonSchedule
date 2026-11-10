@@ -10,6 +10,7 @@ import androidx.activity.compose.setContent
 import androidx.activity.enableEdgeToEdge
 import androidx.compose.animation.AnimatedVisibility
 import androidx.compose.animation.core.Animatable
+import androidx.compose.animation.core.animateFloatAsState
 import androidx.compose.animation.core.spring
 import androidx.compose.animation.expandHorizontally
 import androidx.compose.animation.fadeIn
@@ -28,6 +29,7 @@ import androidx.compose.foundation.layout.RowScope
 import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
+import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.navigationBarsPadding
 import androidx.compose.foundation.layout.offset
 import androidx.compose.foundation.layout.padding
@@ -69,7 +71,9 @@ import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.asImageBitmap
 import androidx.compose.ui.graphics.lerp
+import androidx.compose.ui.graphics.graphicsLayer
 import androidx.compose.ui.graphics.luminance
+import androidx.compose.ui.graphics.toArgb
 import androidx.compose.foundation.gestures.awaitFirstDown
 import androidx.compose.ui.input.pointer.pointerInput
 import androidx.compose.ui.layout.ContentScale
@@ -84,10 +88,14 @@ import androidx.compose.ui.unit.IntOffset
 import androidx.compose.ui.unit.IntSize
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
+import com.anon.schedule.data.AppIcons
 import com.anon.schedule.data.Repo
 import com.anon.schedule.data.tableSettings
 import com.anon.schedule.notify.ClassReminder
+import com.anon.schedule.ui.common.liquidGlassFinish
 import com.anon.schedule.ui.course.EditCourseScreen
+import com.anon.schedule.ui.theme.GlassParams
+import com.anon.schedule.ui.theme.rememberGlassRefraction
 import com.anon.schedule.ui.importer.ImportCsvScreen
 import com.anon.schedule.ui.importer.ImportZfScreen
 import com.anon.schedule.ui.mine.ChaoxingScreen
@@ -96,6 +104,7 @@ import com.anon.schedule.ui.mine.MineScreen
 import com.anon.schedule.ui.mine.UBangScreen
 import com.anon.schedule.ui.mine.UpdateLogScreen
 import com.anon.schedule.ui.schedule.ScheduleScreen
+import com.anon.schedule.ui.settings.AppIconScreen
 import com.anon.schedule.ui.settings.CourseListScreen
 import com.anon.schedule.ui.settings.QuickActionsScreen
 import com.anon.schedule.ui.settings.SettingsScreen
@@ -109,7 +118,10 @@ import com.anon.schedule.ui.theme.CardAlphaPreview
 import com.anon.schedule.ui.theme.CardAlphaProvider
 import com.anon.schedule.ui.theme.LocalContentHaze
 import com.anon.schedule.ui.theme.LocalHasBackground
+import com.anon.schedule.ui.theme.LocalPaletteDarkBarAccent
 import com.anon.schedule.ui.theme.LocalWallpaperHaze
+import com.anon.schedule.ui.theme.isDarkMode
+import com.anon.schedule.ui.theme.paletteBackgroundColor
 import com.anon.schedule.ui.today.TodayScreen
 import com.anon.schedule.widget.Widgets
 import dev.chrisbanes.haze.HazeState
@@ -147,14 +159,14 @@ private const val GLASS_FALLBACK_ALPHA = 0.92f
 
 // ---- 悬浮底栏（NPatch 那种墨色玻璃）----------------------------------------
 /**
- * 底栏走「墨色玻璃」：比内容沉一档、靠一圈细亮边勾轮廓，选中项是一颗发亮的玻璃珠。
- * 改成 false 就回到跟随主题的浅色玻璃（上一版观感），图标/指示块颜色会自动跟着切。
+ * 深色模式走「墨色玻璃」：比内容沉一档、靠一圈细亮边勾轮廓，选中项是一颗发亮的玻璃珠；
+ * 浅色模式自动回到跟随主题的浅色玻璃，图标 / 指示块颜色一并跟着切。
  */
-private const val BAR_DARK_GLASS = true
 /** 采样自 NPatch 药丸玻璃 #232830 */
 private val BAR_DARK_TINT = Color(0xFF232830)
-/** 采样自 NPatch 选中项的浅蓝 #A2C0E1 */
-private val BAR_ACCENT = Color(0xFFA2C0E1)
+// 底栏的 tint 浓度：太透时背后内容的糊色会顶上来，图标和文字都发灰，
+// 0.86 这一档既保住了玻璃的层次，又保证三格文字清晰。
+private const val BAR_DARK_TINT_ALPHA = 0.86f
 
 /** 桌面长按「添加小部件」快捷方式带进来的标记（对应 res/xml/shortcuts.xml 里的 extra） */
 private const val EXTRA_ADD_WIDGET = "com.anon.schedule.extra.ADD_WIDGET"
@@ -172,6 +184,7 @@ sealed class SubPage {
     data object UBang : SubPage()
     data object Chaoxing : SubPage()
     data object UpdateLog : SubPage()
+    data object AppIcon : SubPage()
     data object TableManage : SubPage()
     data class TableSettings(val tableId: Long) : SubPage()
     data class TableData(val tableId: Long) : SubPage()
@@ -184,6 +197,8 @@ class MainActivity : ComponentActivity() {
         enableEdgeToEdge()
         // 同步读完本地数据：首帧就能用上持久化的主题，避免"先浅色默认主题、再切深色"的闪一下
         Repo.init(applicationContext)
+        // 把「软件图标」持久化的选中项同步到系统组件状态（状态一致时不做任何事）
+        AppIcons.sync(applicationContext, Repo.state.value.settings.appIcon)
         // 首帧就用持久化的不透明度，不等组合后的 LaunchedEffect
         CardAlphaPreview.floatValue = Repo.state.value.tableSettings().cardAlphaPercent / 100f
         // 课程/设置变动后重排上课提醒（进程被杀或错过开机广播时也靠这里补）
@@ -196,7 +211,11 @@ class MainActivity : ComponentActivity() {
             2 -> true
             else -> sysDark
         }
-        window.setBackgroundDrawable(ColorDrawable(if (dark) 0xFF000000.toInt() else 0xFFF6F6F8.toInt()))
+        window.setBackgroundDrawable(
+            ColorDrawable(
+                paletteBackgroundColor(Repo.state.value.settings.themePalette, dark).toArgb()
+            )
+        )
         // 从桌面快捷方式进来：进课表页后直接弹出「添加小部件」
         val fromWidgetShortcut = intent?.getStringExtra(EXTRA_ADD_WIDGET) == "1"
         setContent {
@@ -210,7 +229,11 @@ class MainActivity : ComponentActivity() {
             //  · wallpaperHaze = 只有壁纸，给卡片，避免把别的卡片也模糊进去
             val contentHaze = rememberHazeState()
             val wallpaperHaze = rememberHazeState()
-            AppTheme(themeMode = st.settings.themeMode, liquidGlass = st.settings.liquidGlass) {
+            AppTheme(
+                themeMode = st.settings.themeMode,
+                paletteId = st.settings.themePalette,
+                liquidGlass = st.settings.liquidGlass
+            ) {
                 val surface = MaterialTheme.colorScheme.surfaceContainer
                 // 卡片垫色用比 surface 略深一档的 surfaceContainer：
                 // NPatch 的卡片是实色 #16181E、背景 #0E0D11、玻璃 #232830，逐级提亮才有秩序。
@@ -228,7 +251,8 @@ class MainActivity : ComponentActivity() {
                 CompositionLocalProvider(
                     LocalHasBackground provides hasBackground,
                     LocalContentHaze provides if (st.settings.liquidGlass) contentHaze else null,
-                    LocalWallpaperHaze provides if (st.settings.liquidGlass) wallpaperHaze else null,
+                    // 卡片只做普通磨砂：有背景图就提供采样源，不再受液态玻璃开关影响
+                    LocalWallpaperHaze provides if (hasBackground) wallpaperHaze else null,
                     LocalHazeStyle provides glassStyle
                 ) {
                     // 单独一层：拖动时只重组这一层 + 卡片，不牵动 AppTheme / AppRoot 整棵树
@@ -383,6 +407,7 @@ fun AppRoot(addWidgetShortcut: Boolean = false) {
                         SubPage.UBang -> UBangScreen(onBack = { pop() })
                         SubPage.Chaoxing -> ChaoxingScreen(onBack = { pop() })
                         SubPage.UpdateLog -> UpdateLogScreen(onBack = { pop() })
+                        SubPage.AppIcon -> AppIconScreen(onBack = { pop() })
                         SubPage.TableManage -> TableManageScreen(
                             onBack = { pop() },
                             onEdit = { push(SubPage.TableSettings(it)) },
@@ -417,6 +442,7 @@ fun AppRoot(addWidgetShortcut: Boolean = false) {
                 selected = tab,
                 onSelect = { tab = it },
                 hazeState = contentHaze,
+                darkBar = isDarkMode(st.settings.themeMode),
                 pillSize = pillSize,
                 onPillLayout = { s -> pillSize = s },
                 modifier = Modifier.align(Alignment.BottomCenter)
@@ -452,6 +478,7 @@ private fun GlassPillNav(
     selected: Int,
     onSelect: (Int) -> Unit,
     hazeState: HazeState?,
+    darkBar: Boolean,
     pillSize: IntSize,
     onPillLayout: (IntSize) -> Unit,
     modifier: Modifier = Modifier
@@ -460,13 +487,12 @@ private fun GlassPillNav(
     // 看起来像划痕；NPatch 的药丸就是标准 stadium，换全圆角后斜纹自然消失。
     val shape = RoundedCornerShape(percent = 50)
     val glass = hazeState != null
-    // 底栏不继承卡片的浅色配方，单独压一层墨色玻璃；关掉开关时 Unspecified 会回归 LocalHazeStyle
-    val darkBar = BAR_DARK_GLASS
+    // 深色模式单独压一层墨色玻璃；浅色模式走 Unspecified，回归 LocalHazeStyle 的浅色配方
     val surface = MaterialTheme.colorScheme.surface
-    val barStyle = remember(surface) {
+    val barStyle = remember(surface, darkBar) {
         if (!darkBar) HazeStyle.Unspecified else HazeStyle(
             backgroundColor = surface,
-            tints = listOf(HazeTint(BAR_DARK_TINT.copy(alpha = 0.86f))),
+            tints = listOf(HazeTint(BAR_DARK_TINT.copy(alpha = BAR_DARK_TINT_ALPHA))),
             blurRadius = GLASS_BLUR,
             noiseFactor = GLASS_NOISE,
             fallbackTint = HazeTint(BAR_DARK_TINT.copy(alpha = 0.97f)),
@@ -477,6 +503,10 @@ private fun GlassPillNav(
     val slidePos = remember { Animatable(selected.toFloat()) }
     val dragPos = remember { mutableFloatStateOf(selected.toFloat()) }
     var dragging by remember { mutableStateOf(false) }
+    // 当前手指压住的格子：只用来做「果冻按压」，抬手立刻复位
+    var touchIndex by remember { mutableStateOf<Int?>(null) }
+    // 药丸自身的像素尺寸：AGSL 折射着色器要用它算圆角与中心
+    var barSize by remember { mutableStateOf(IntSize.Zero) }
     // pointerInput 的接收者不是 CoroutineScope，动画得发到组合级协程里
     val uiScope = rememberCoroutineScope()
     val haptic = LocalHapticFeedback.current
@@ -492,6 +522,20 @@ private fun GlassPillNav(
     val gapPx = with(density) { 4.dp.toPx() }
     val itemW = if (pillSize.width > 0) (pillSize.width - 2 * padPx - 2 * gapPx) / 3f else 0f
     val stepPx = itemW + gapPx
+    // 液态玻璃折射参数（与 NPatch 底栏同一套 AGSL）：
+    // 圆角取半高；折射带只留窄窄一圈（7dp），最大位移也压到 5dp，
+    // 否则位移会顶到栏高的一半，整条胶囊会被"掰弯"成夸张的透镜。
+    val glassParams = remember(barSize, darkBar, density) {
+        GlassParams(
+            cornerRadiusPx = barSize.height / 2f,
+            refractionHeightPx = with(density) { 7.dp.toPx() },
+            refractionAmount = -with(density) { 5.dp.toPx() },
+            depthEffect = 1.2f,
+            highlightColor = Color.White.copy(alpha = if (darkBar) 0.45f else 0.35f)
+        )
+    }
+    // API 33+ 才会有；低版本返回 null，自动退回纯 Haze 模糊
+    val refraction = rememberGlassRefraction(barSize, glassParams)
     fun indexOf(x: Float) =
         if (stepPx > 0f) ((x - padPx - itemW / 2f) / stepPx).roundToInt().coerceIn(0, 2) else 0
     fun fracOf(x: Float) =
@@ -508,7 +552,10 @@ private fun GlassPillNav(
             .navigationBarsPadding()
             .padding(horizontal = 18.dp, vertical = 10.dp)
             .fillMaxWidth()
-            .onGloballyPositioned { onPillLayout(it.size) }
+            .onGloballyPositioned {
+                barSize = it.size
+                onPillLayout(it.size)
+            }
             // 点/拖统一手势：横向位移超 touchSlop 且大于纵向 → 进入拖选。
             // 拖选中消费事件，子项不再各自 clickable，避免抬手二次响应。
             .pointerInput(stepPx) {
@@ -520,6 +567,7 @@ private fun GlassPillNav(
                         dragPos.floatValue = slidePos.value
                         dragging = false
                         var preview = indexOf(down.position.x)
+                        touchIndex = preview
                         while (true) {
                             val event = awaitPointerEvent()
                             val ch = event.changes.firstOrNull { it.pressed } ?: break
@@ -536,12 +584,14 @@ private fun GlassPillNav(
                                 val pi = dragPos.floatValue.roundToInt().coerceIn(0, 2)
                                 if (pi != preview) {
                                     preview = pi
+                                    touchIndex = pi
                                     haptic.performHapticFeedback(HapticFeedbackType.TextHandleMove)
                                 }
                                 ch.consume()
                             }
                         }
                         val wasDragging = dragging
+                        touchIndex = null
                         val target = if (wasDragging) {
                             dragPos.floatValue.roundToInt().coerceIn(0, 2)
                         } else {
@@ -560,6 +610,14 @@ private fun GlassPillNav(
             }
             .shadow(if (darkBar) 3.dp else 8.dp, shape, clip = false)
             .clip(shape)
+            // 先把「折射」套在外层，再让 Haze 在里面画模糊背景：
+            // RenderEffect 的 content 就是这一层的最终内容（模糊后的背景 + 色垫），
+            // 边缘一圈会被 AGSL 弯掉，和 NPatch 底栏的做法一致。
+            .then(
+                if (glass && refraction != null) Modifier.graphicsLayer {
+                    renderEffect = refraction
+                } else Modifier
+            )
             .then(
                 if (glass) Modifier.hazeEffect(state = hazeState, style = barStyle)
                 else Modifier.background(
@@ -602,21 +660,11 @@ private fun GlassPillNav(
                     }
             )
         }
-        // 一圈极淡的边光勾出玻璃轮廓：不叠方向高光 / 跟手光斑 / 折射 / 色散
+        // 液态玻璃收尾：上亮下暗的轮廓边光、左右色散、顶部镜面、底部内阴影
         Box(
             Modifier
                 .matchParentSize()
-                .border(
-                    width = if (darkBar) 1.dp else 0.6.dp,
-                    brush = Brush.verticalGradient(
-                        if (darkBar) listOf(
-                            Color.White.copy(alpha = 0.42f), Color.White.copy(alpha = 0.12f)
-                        ) else listOf(
-                            Color.White.copy(alpha = 0.18f), Color.White.copy(alpha = 0.04f)
-                        )
-                    ),
-                    shape = shape
-                )
+                .liquidGlassFinish(shape = shape, dark = darkBar)
         )
         // 内容（撑起药丸尺寸，其余层 matchParentSize 跟随）
         Row(
@@ -626,9 +674,9 @@ private fun GlassPillNav(
             horizontalArrangement = Arrangement.spacedBy(4.dp),
             verticalAlignment = Alignment.CenterVertically
         ) {
-            PillItem(Icons.Default.Today, "今日课表", previewIndex == 0, darkBar) { onSelect(0) }
-            PillItem(Icons.Default.DateRange, "课表", previewIndex == 1, darkBar) { onSelect(1) }
-            PillItem(Icons.Default.Person, "我的", previewIndex == 2, darkBar) { onSelect(2) }
+            PillItem(Icons.Default.Today, "今日课表", previewIndex == 0, darkBar, touchIndex == 0) { onSelect(0) }
+            PillItem(Icons.Default.DateRange, "课表", previewIndex == 1, darkBar, touchIndex == 1) { onSelect(1) }
+            PillItem(Icons.Default.Person, "我的", previewIndex == 2, darkBar, touchIndex == 2) { onSelect(2) }
         }
     }
 }
@@ -639,21 +687,50 @@ private fun RowScope.PillItem(
     label: String,
     selected: Boolean,
     darkBar: Boolean = false,
+    pressed: Boolean = false,
     onClick: () -> Unit
 ) {
     val primary = MaterialTheme.colorScheme.primary
-    // 墨色玻璃上未选中也要够亮，选中项用 NPatch 那种浅蓝拉开一档
+    // 墨色玻璃上未选中也要够亮，选中项用当前配色的点缀色拉开一档
+    val barAccent = LocalPaletteDarkBarAccent.current
     val tint = when {
-        darkBar && selected -> BAR_ACCENT
+        darkBar && selected -> barAccent
         darkBar -> Color.White.copy(alpha = 0.78f)
         selected -> primary
         else -> MaterialTheme.colorScheme.onSurfaceVariant
     }
+    // 果冻按压：横向微鼓、纵向压扁；抬手弹回。光晕随按压透出来（体积光的简化版）
+    val jelly by animateFloatAsState(
+        targetValue = if (pressed) 1f else 0f,
+        animationSpec = spring(dampingRatio = 0.55f, stiffness = 520f),
+        label = "pillJelly"
+    )
     Row(
         modifier = Modifier
             .weight(1f)
             // 点按/拖选由药丸统一手势处理；这里只保留无障碍语义入口
             .semantics { onClick(label = null) { onClick(); true } }
+            .drawBehind {
+                if (jelly > 0.01f) {
+                    val r = size.minDimension * 0.95f
+                    drawCircle(
+                        brush = Brush.radialGradient(
+                            listOf(
+                                Color.White.copy(alpha = 0.20f * jelly),
+                                Color.Transparent
+                            ),
+                            center = center,
+                            radius = r
+                        ),
+                        radius = r,
+                        center = center
+                    )
+                }
+            }
+            .graphicsLayer {
+                scaleX = 1f + 0.04f * jelly
+                scaleY = 1f - 0.08f * jelly
+            }
             .padding(vertical = 10.dp),
         horizontalArrangement = Arrangement.Center,
         verticalAlignment = Alignment.CenterVertically

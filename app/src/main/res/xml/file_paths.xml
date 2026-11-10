@@ -2,4 +2,6 @@
 <!-- 学习通作答页拍照上传：相机把照片写进缓存目录，再以 content:// 交给 WebView -->
 <paths>
     <cache-path name="cx_camera" path="cx_camera/" />
+    <!-- 分享课表 CSV：生成到缓存目录后用 content:// 交给分享面板 -->
+    <cache-path name="share" path="share/" />
 </paths>

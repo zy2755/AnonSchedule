@@ -43,7 +43,7 @@ class TodayWideWidget : AppWidgetProvider() {
             val now = LocalTime.now()
             val today = LocalDate.now()
             val week = Repo.weekOf(st, today) ?: st.tableSettings().currentWeek
-            val weekPart = if (st.tableSettings().startDate != null) "第 $week 周 " else ""
+            val weekPart = if (st.tableSettings().startDate != null) "第${week}周 · " else ""
             val weekday = "周${"一二三四五六日"[today.dayOfWeek.value - 1]}"
             val tableName = st.tables.firstOrNull { it.id == st.currentTableId }?.name ?: "我的课表"
 

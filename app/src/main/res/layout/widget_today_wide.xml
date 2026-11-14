@@ -6,7 +6,7 @@
     android:layout_height="match_parent"
     android:background="@drawable/widget_bg"
     android:orientation="vertical"
-    android:padding="14dp">
+    android:padding="12dp">
 
     <!-- 头部：课表名（灰） + 日期（白） + 周次（灰） -->
     <LinearLayout
@@ -16,7 +16,7 @@
         android:orientation="horizontal"
         android:paddingStart="4dp"
         android:paddingEnd="4dp"
-        android:paddingBottom="10dp">
+        android:paddingBottom="4dp">
 
         <TextView
             android:id="@+id/widget_table"
@@ -24,6 +24,7 @@
             android:layout_height="wrap_content"
             android:layout_weight="1"
             android:ellipsize="end"
+            android:includeFontPadding="false"
             android:maxLines="1"
             android:textColor="@color/widget_text_dim"
             android:textSize="13sp" />
@@ -33,6 +34,7 @@
             android:layout_width="wrap_content"
             android:layout_height="wrap_content"
             android:layout_marginStart="8dp"
+            android:includeFontPadding="false"
             android:maxLines="1"
             android:textColor="@color/widget_text"
             android:textSize="13sp"
@@ -43,6 +45,7 @@
             android:layout_width="wrap_content"
             android:layout_height="wrap_content"
             android:layout_marginStart="6dp"
+            android:includeFontPadding="false"
             android:maxLines="1"
             android:textColor="@color/widget_text_dim"
             android:textSize="12sp" />
@@ -71,6 +74,7 @@
             android:layout_width="wrap_content"
             android:layout_height="wrap_content"
             android:gravity="center"
+            android:includeFontPadding="false"
             android:textColor="@color/widget_text"
             android:textSize="15sp"
             android:textStyle="bold" />
@@ -79,8 +83,9 @@
             android:id="@+id/widget_done_sub"
             android:layout_width="wrap_content"
             android:layout_height="wrap_content"
-            android:layout_marginTop="6dp"
+            android:layout_marginTop="4dp"
             android:gravity="center"
+            android:includeFontPadding="false"
             android:textColor="@color/widget_text_dim"
             android:textSize="11sp" />
     </LinearLayout>

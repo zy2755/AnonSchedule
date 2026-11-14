@@ -8,13 +8,13 @@
     android:orientation="horizontal"
     android:paddingStart="2dp"
     android:paddingEnd="2dp"
-    android:paddingTop="10dp"
-    android:paddingBottom="10dp">
+    android:paddingTop="6dp"
+    android:paddingBottom="6dp">
 
     <TextView
         android:id="@+id/item_accent"
         android:layout_width="3dp"
-        android:layout_height="44dp"
+        android:layout_height="36dp"
         android:layout_marginEnd="11dp"
         android:background="#FFE8629B" />
 
@@ -29,6 +29,7 @@
             android:layout_width="match_parent"
             android:layout_height="wrap_content"
             android:ellipsize="middle"
+            android:includeFontPadding="false"
             android:maxLines="1"
             android:textColor="@color/widget_card_text"
             android:textSize="14sp"
@@ -38,8 +39,9 @@
             android:id="@+id/item_room"
             android:layout_width="match_parent"
             android:layout_height="wrap_content"
-            android:layout_marginTop="3dp"
+            android:layout_marginTop="2dp"
             android:ellipsize="end"
+            android:includeFontPadding="false"
             android:maxLines="1"
             android:textColor="@color/widget_card_dim"
             android:textSize="11sp" />
@@ -56,6 +58,7 @@
             android:id="@+id/item_start"
             android:layout_width="wrap_content"
             android:layout_height="wrap_content"
+            android:includeFontPadding="false"
             android:maxLines="1"
             android:textColor="@color/widget_card_text"
             android:textSize="12sp" />
@@ -64,7 +67,8 @@
             android:id="@+id/item_end"
             android:layout_width="wrap_content"
             android:layout_height="wrap_content"
-            android:layout_marginTop="3dp"
+            android:layout_marginTop="2dp"
+            android:includeFontPadding="false"
             android:maxLines="1"
             android:textColor="@color/widget_card_dim"
             android:textSize="11sp" />

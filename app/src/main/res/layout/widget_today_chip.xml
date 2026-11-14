@@ -9,14 +9,14 @@
     android:orientation="horizontal"
     android:paddingStart="4dp"
     android:paddingEnd="4dp"
-    android:paddingTop="10dp"
-    android:paddingBottom="10dp">
+    android:paddingTop="6dp"
+    android:paddingBottom="6dp">
 
     <!-- 分类色竖线：只保留这一条细线，不再铺整块背景 -->
     <TextView
         android:id="@+id/card_accent"
         android:layout_width="3dp"
-        android:layout_height="48dp"
+        android:layout_height="40dp"
         android:layout_marginEnd="11dp"
         android:background="#FFE8629B" />
 
@@ -31,6 +31,7 @@
             android:layout_width="match_parent"
             android:layout_height="wrap_content"
             android:ellipsize="middle"
+            android:includeFontPadding="false"
             android:maxLines="1"
             android:textColor="@color/widget_card_text"
             android:textSize="15sp"
@@ -40,8 +41,9 @@
             android:id="@+id/card_room"
             android:layout_width="match_parent"
             android:layout_height="wrap_content"
-            android:layout_marginTop="4dp"
+            android:layout_marginTop="2dp"
             android:ellipsize="end"
+            android:includeFontPadding="false"
             android:maxLines="1"
             android:textColor="@color/widget_card_dim"
             android:textSize="12sp" />
@@ -59,6 +61,7 @@
             android:id="@+id/card_start"
             android:layout_width="wrap_content"
             android:layout_height="wrap_content"
+            android:includeFontPadding="false"
             android:maxLines="1"
             android:textColor="@color/widget_card_text"
             android:textSize="13sp" />
@@ -67,7 +70,8 @@
             android:id="@+id/card_end"
             android:layout_width="wrap_content"
             android:layout_height="wrap_content"
-            android:layout_marginTop="4dp"
+            android:layout_marginTop="2dp"
+            android:includeFontPadding="false"
             android:maxLines="1"
             android:textColor="@color/widget_card_dim"
             android:textSize="12sp" />

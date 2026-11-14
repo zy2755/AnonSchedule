@@ -70,7 +70,7 @@ class TodaySmallWidget : AppWidgetProvider() {
         }
 
         private fun weekSuffix(st: AppState, week: Int): String =
-            if (st.tableSettings().startDate != null) " · 第 $week 周" else ""
+            if (st.tableSettings().startDate != null) " · 第${week}周" else ""
     }
 }
 

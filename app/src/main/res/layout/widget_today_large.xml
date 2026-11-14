@@ -6,7 +6,7 @@
     android:layout_height="match_parent"
     android:background="@drawable/widget_bg"
     android:orientation="vertical"
-    android:padding="14dp">
+    android:padding="12dp">
 
     <TextView
         android:id="@+id/widget_header"
@@ -14,8 +14,9 @@
         android:layout_height="wrap_content"
         android:paddingStart="2dp"
         android:paddingEnd="2dp"
-        android:paddingBottom="8dp"
+        android:paddingBottom="6dp"
         android:ellipsize="end"
+        android:includeFontPadding="false"
         android:maxLines="1"
         android:textColor="@color/widget_text"
         android:textSize="13sp"
@@ -40,6 +41,7 @@
             android:layout_height="match_parent"
             android:gravity="center"
             android:text="今天没有课～"
+            android:includeFontPadding="false"
             android:textColor="@color/widget_text_dim"
             android:textSize="12sp" />
     </FrameLayout>

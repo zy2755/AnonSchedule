@@ -9,5 +9,7 @@ object Widgets {
         TodayLargeWidget.refresh(ctx)
         TodayWideWidget.refresh(ctx)
         TodayTomorrowWidget.refresh(ctx)
+        // 刷完接着排下一个边界：跨零点、上下课都会自动再刷一次
+        WidgetRefresh.scheduleNext(ctx)
     }
 }

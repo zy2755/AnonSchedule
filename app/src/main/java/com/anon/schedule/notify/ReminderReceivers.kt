@@ -3,6 +3,7 @@ package com.anon.schedule.notify
 import android.content.BroadcastReceiver
 import android.content.Context
 import android.content.Intent
+import com.anon.schedule.widget.Widgets
 
 /** 闹钟到点：弹一条提醒，并把后面一周的排程顺延 */
 class ClassReminderReceiver : BroadcastReceiver() {
@@ -22,5 +23,7 @@ class ClassReminderReceiver : BroadcastReceiver() {
 class ReminderBootReceiver : BroadcastReceiver() {
     override fun onReceive(context: Context, intent: Intent) {
         ClassReminder.scheduleAll(context)
+        // 顺便把小组件刷一次并接上自刷闹钟，避免关机跨天之后还停在旧日期
+        Widgets.refreshAll(context)
     }
 }

@@ -42,7 +42,7 @@ class TodayLargeWidget : AppWidgetProvider() {
             val st = WidgetData.load(ctx)
             val today = LocalDate.now()
             val week = Repo.weekOf(st, today) ?: st.tableSettings().currentWeek
-            val weekPart = if (st.tableSettings().startDate != null) " · 第 $week 周" else ""
+            val weekPart = if (st.tableSettings().startDate != null) " · 第${week}周" else ""
             val tableName = st.tables.firstOrNull { it.id == st.currentTableId }?.name ?: "我的课表"
 
             val views = RemoteViews(ctx.packageName, R.layout.widget_today_large)

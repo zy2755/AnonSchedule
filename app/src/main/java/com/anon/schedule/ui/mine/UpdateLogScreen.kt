@@ -35,6 +35,35 @@ private data class UpdateEntry(val version: String, val days: List<UpdateDay>)
 /** 更新内容（新的在最上面；改动按版本归类，同一版本内再按日期分段） */
 private val updateEntries = listOf(
     UpdateEntry(
+        version = "1.0.11",
+        days = listOf(
+            UpdateDay(
+                date = "2026-11-14",
+                items = listOf(
+                    "小组件：新增自刷闹钟，跨零点自动换成当天日期，不用再点一下才更新",
+                    "小组件：上下课时刻也会自动重画，「正在上 / 下一节」不再停在早上的状态",
+                    "小组件：手机重启、覆盖安装或改时间后会立刻刷新并重新排程",
+                    "版本：升级到 1.0.11"
+                )
+            )
+        )
+    ),
+    UpdateEntry(
+        version = "1.0.10",
+        days = listOf(
+            UpdateDay(
+                date = "2026-11-11",
+                items = listOf(
+                    "小部件：收紧行高与块间距，课程名和地点不再被拉得很散",
+                    "小部件：关掉系统给文字预留的上下额外留白，四款尺寸都更紧凑",
+                    "小部件：4×2 尺寸下第二节课不再被裁掉半行",
+                    "小部件：周次显示由「第 10 周」改为「第10周」，日期行不再松散",
+                    "版本：升级到 1.0.10"
+                )
+            )
+        )
+    ),
+    UpdateEntry(
         version = "1.0.9",
         days = listOf(
             UpdateDay(

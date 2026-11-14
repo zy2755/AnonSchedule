@@ -123,6 +123,7 @@ import com.anon.schedule.ui.theme.LocalWallpaperHaze
 import com.anon.schedule.ui.theme.isDarkMode
 import com.anon.schedule.ui.theme.paletteBackgroundColor
 import com.anon.schedule.ui.today.TodayScreen
+import com.anon.schedule.widget.WidgetRefresh
 import com.anon.schedule.widget.Widgets
 import dev.chrisbanes.haze.HazeState
 import dev.chrisbanes.haze.HazeStyle
@@ -203,6 +204,8 @@ class MainActivity : ComponentActivity() {
         CardAlphaPreview.floatValue = Repo.state.value.tableSettings().cardAlphaPercent / 100f
         // 课程/设置变动后重排上课提醒（进程被杀或错过开机广播时也靠这里补）
         ClassReminder.scheduleAll(applicationContext)
+        // 小组件的到点自刷闹钟也在启动时接上，避免跨零点后还停在昨天的日期
+        WidgetRefresh.scheduleNext(applicationContext)
         // 清单里窗口/闪屏底色默认写成了深色（防白屏）；浅色用户在这里改回浅色，让启动窗口和主题一致
         val sysDark = (resources.configuration.uiMode and Configuration.UI_MODE_NIGHT_MASK) ==
                 Configuration.UI_MODE_NIGHT_YES

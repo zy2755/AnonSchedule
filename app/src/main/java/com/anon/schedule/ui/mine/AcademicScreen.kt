@@ -19,12 +19,17 @@ import androidx.compose.material3.Text
 import androidx.compose.material3.TopAppBar
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.DisposableEffect
+import androidx.compose.runtime.LaunchedEffect
+import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
+import androidx.compose.runtime.rememberUpdatedState
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.viewinterop.AndroidView
+import com.anon.schedule.data.Repo
+import com.anon.schedule.ui.theme.isDarkMode
 
 /**
  * 正方教务的「学业情况查询」页面。
@@ -39,6 +44,18 @@ fun AcademicScreen(onBack: () -> Unit) {
     var webView by remember { mutableStateOf<WebView?>(null) }
     var loading by remember { mutableStateOf(true) }
     var canGoBack by remember { mutableStateOf(false) }
+
+    // 跟 App 主题走：成绩页是本地数据会跟着深浅切换，这页也不该写死成浅色
+    val st by Repo.state.collectAsState()
+    val dark = isDarkMode(st.settings.themeMode)
+    val darkNow = rememberUpdatedState(dark)
+
+    // 主题切换后重刷一遍：页面已经加载完时不必重新拉数据，直接换色即可
+    LaunchedEffect(dark, webView) {
+        val view = webView ?: return@LaunchedEffect
+        view.setBackgroundColor(if (dark) ZF_BG_DARK else ZF_BG_LIGHT)
+        applyZfRestyle(view, dark)
+    }
 
     // 页面里点进二级页时，返回键先退网页；退到起点再交给整体导航
     BackHandler(enabled = canGoBack) { webView?.goBack() }
@@ -75,12 +92,13 @@ fun AcademicScreen(onBack: () -> Unit) {
                     WebView(ctx).apply {
                         // 与「成绩查询」共用同一套设置与 UA，登录态才是通的
                         configureZfWebView(this)
+                        setBackgroundColor(if (darkNow.value) ZF_BG_DARK else ZF_BG_LIGHT)
                         webViewClient = object : WebViewClient() {
                             override fun onPageFinished(view: WebView?, url: String?) {
                                 loading = false
                                 canGoBack = view?.canGoBack() == true
                                 // 正方原生排版在手机上太挤，加载完就套上自己的排版
-                                if (view != null) applyZfRestyle(view)
+                                if (view != null) applyZfRestyle(view, darkNow.value)
                             }
                         }
                         loadUrl(ZF_ACADEMIC_URL)

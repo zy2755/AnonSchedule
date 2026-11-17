@@ -105,11 +105,33 @@ ul.treeview .title i.zt3{position:absolute!important;right:7px!important;top:9px
 .more_con table tr:nth-child(odd)>td{background:#fff!important}
 .more_con table tr:nth-child(even)>td{background:#fafbfd!important}
 .more_con table td{border-bottom:1px solid #f1f3f8!important}
+.more_con a{color:#4a6fd4!important;text-decoration:none!important}
+
+/* ---- 深色主题 ---- */
+/* 页面本身是正方给的浅色稿，深色下靠这套覆盖改成和 App 一致的暗色卡片 */
+html.anon-dark,html.anon-dark body{background:#101215!important}
+html.anon-dark #alertBox{background:#1a1d22!important;border-color:#24282f!important;color:#a4acb8!important;box-shadow:none!important}
+html.anon-dark ul.treeview .title{background:#1a1d22!important;border-color:#24282f!important;border-left-color:#4a6598!important;box-shadow:none!important}
+html.anon-dark ul.treeview>li>.title{border-left-color:#5878b4!important}
+html.anon-dark ul.treeview li ul>li>.title{border-left-color:#3c4d68!important}
+html.anon-dark ul.treeview .title,html.anon-dark ul.treeview .title *{color:#e7e9ee!important}
+html.anon-dark ul.treeview .title .more,html.anon-dark ul.treeview .title a,html.anon-dark .more_con a{color:#9dc0ff!important}
+html.anon-dark ul.treeview .title .zt1{background:#262b33!important;color:#9dc0ff!important}
+html.anon-dark ul.treeview .hitarea{background:#262b33!important;border-color:#333a44!important}
+html.anon-dark ul.treeview li.collapsable>.hitarea:after{background:#98a3b3!important}
+html.anon-dark ul.treeview li.expandable>.hitarea:before{background:#98a3b3!important}
+html.anon-dark .more_con{background:#1a1d22!important;border-color:#24282f!important}
+html.anon-dark .more_con table,html.anon-dark .more_con table th,html.anon-dark .more_con table td{background:#1a1d22!important;color:#dfe3e9!important}
+html.anon-dark .more_con table th{background:#20242a!important;color:#a4acb8!important}
+html.anon-dark .more_con table tr:nth-child(odd)>td{background:#1a1d22!important}
+html.anon-dark .more_con table tr:nth-child(even)>td{background:#1e2228!important}
+html.anon-dark .more_con table td{border-bottom-color:#24282f!important}
 """
 
 /** 注入样式并把「要求学分:36.0」压成「要求 36.0」，避免长词被硬断行 */
 private val ZF_RESTYLE_JS = """
 (function(){
+  document.documentElement.classList[__ANON_DARK__ ? 'add' : 'remove']('anon-dark');
   if(!document.getElementById('anon-zf-style')){
     var s=document.createElement('style');
     s.id='anon-zf-style';
@@ -138,7 +160,14 @@ private val ZF_RESTYLE_JS = """
 })();
 """
 
-/** 给已经加载完的教务页面套上重排版 */
-internal fun applyZfRestyle(view: WebView) {
-    view.evaluateJavascript(ZF_RESTYLE_JS, null)
+/** 页面底色，和 App 的深浅色对齐，避免加载过程中先闪一下白 */
+internal const val ZF_BG_LIGHT = 0xFFEEF1F6.toInt()
+internal const val ZF_BG_DARK = 0xFF101215.toInt()
+
+/** 给已经加载完的教务页面套上重排版；深色下同时切到暗色卡片 */
+internal fun applyZfRestyle(view: WebView, dark: Boolean) {
+    view.evaluateJavascript(
+        ZF_RESTYLE_JS.replace("__ANON_DARK__", if (dark) "true" else "false"),
+        null
+    )
 }

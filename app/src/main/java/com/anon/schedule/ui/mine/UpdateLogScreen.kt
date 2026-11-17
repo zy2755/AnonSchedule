@@ -35,6 +35,20 @@ private data class UpdateEntry(val version: String, val days: List<UpdateDay>)
 /** 更新内容（新的在最上面；改动按版本归类，同一版本内再按日期分段） */
 private val updateEntries = listOf(
     UpdateEntry(
+        version = "1.0.14",
+        days = listOf(
+            UpdateDay(
+                date = "2026-11-17",
+                items = listOf(
+                    "学业情况查询：跟随 App 主题切换深浅色，深色下是暗色卡片，不再和成绩查询一个亮一个暗",
+                    "学业情况查询：切换主题后页面即时换色，不用重新进入",
+                    "学业情况查询：页面底色与 App 对齐，加载时不再先闪一下白",
+                    "版本：升级到 1.0.14"
+                )
+            )
+        )
+    ),
+    UpdateEntry(
         version = "1.0.13",
         days = listOf(
             UpdateDay(
@@ -42,7 +56,7 @@ private val updateEntries = listOf(
                 items = listOf(
                     "教务：成绩查询与学业情况查询共用同一套 WebView 配置与登录 Cookie，在一边登录过，另一边进来直接是登录态",
                     "学业情况查询：整页重新排版，改成卡片树，每层缩进收窄，手机上不再越往下越窄",
-                    "学业情况查询：统一成浅色卡片 + 浅灰底，系统深色下也不反色，不再和原站白色表格黑白对撞",
+                    "学业情况查询：卡片统一成浅色 + 浅灰底，展开的明细表也一并包进卡片，不再白底撞色",
                     "学业情况查询：学分压成「要求 / 获得 / 未获得 6.0」，不会再断成「未获 / 得」",
                     "学业情况查询：展开的课程明细改为小字号并支持横向滑动，不再挤成一团",
                     "学业情况查询：折叠按钮改成统一的圆形加减，深色下也看得清",

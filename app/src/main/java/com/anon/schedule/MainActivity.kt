@@ -28,6 +28,9 @@ import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.RowScope
 import androidx.compose.foundation.layout.Spacer
+import androidx.compose.foundation.layout.WindowInsets
+import androidx.compose.foundation.layout.asPaddingValues
+import androidx.compose.foundation.layout.statusBars
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
@@ -297,6 +300,8 @@ fun AppRoot(addWidgetShortcut: Boolean = false) {
     val st by Repo.state.collectAsState()
     val contentHaze = LocalContentHaze.current
     val wallpaperHaze = LocalWallpaperHaze.current
+    // 深色主题下状态栏图标是白的，壁纸偏亮时会糊在一起，需要额外压一层顶部渐变
+    val appDark = isDarkMode(st.settings.themeMode)
     // 快捷方式请求：交给课表页弹一次「添加小部件」，弹完就清掉
     var widgetDialogRequest by remember { mutableStateOf(addWidgetShortcut) }
 
@@ -366,6 +371,27 @@ fun AppRoot(addWidgetShortcut: Boolean = false) {
                                 .matchParentSize()
                                 .background(wallpaperScrim)
                         )
+                        // 顶部渐变：只压状态栏这一条，往下很快淡出。
+                        // 白色状态栏图标压在偏亮的壁纸上时，靠它把对比度拉回来。
+                        if (appDark) {
+                            Box(
+                                Modifier
+                                    .fillMaxWidth()
+                                    .height(
+                                        WindowInsets.statusBars
+                                            .asPaddingValues()
+                                            .calculateTopPadding() + 20.dp
+                                    )
+                                    .align(Alignment.TopCenter)
+                                    .background(
+                                        Brush.verticalGradient(
+                                            0f to Color.Black.copy(alpha = 0.34f),
+                                            0.62f to Color.Black.copy(alpha = 0.14f),
+                                            1f to Color.Transparent
+                                        )
+                                    )
+                            )
+                        }
                     }
                 }
             }

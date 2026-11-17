@@ -35,6 +35,19 @@ private data class UpdateEntry(val version: String, val days: List<UpdateDay>)
 /** 更新内容（新的在最上面；改动按版本归类，同一版本内再按日期分段） */
 private val updateEntries = listOf(
     UpdateEntry(
+        version = "1.0.17",
+        days = listOf(
+            UpdateDay(
+                date = "2026-11-17",
+                items = listOf(
+                    "主页：深色主题下在顶部状态栏区域加一层很淡的渐变，白色状态栏图标压在偏亮壁纸上也能看清",
+                    "渐变只压状态栏这一条，往下很快淡出，不影响壁纸观感；浅色主题不加",
+                    "版本：升级到 1.0.17"
+                )
+            )
+        )
+    ),
+    UpdateEntry(
         version = "1.0.16",
         days = listOf(
             UpdateDay(

@@ -1,0 +1,1448 @@
+<!doctype html>
+<html lang="zh-CN">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>课程表 · AnonSchedule — 课表，不用记</title>
+<meta name="description" content="AnonSchedule 是一个用 Kotlin + Jetpack Compose 写的 Android 课程表：周课表、教务导入、学习通作业与考试、成绩、桌面小组件，以及液态玻璃主题。数据只存在本机。">
+<meta name="color-scheme" content="dark">
+<meta property="og:type" content="website">
+<meta property="og:title" content="课程表 · AnonSchedule — 课表，不用记">
+<meta property="og:description" content="周课表、教务导入、学习通作业与考试、成绩、桌面小组件。后台没有服务器，数据只在手机里。">
+<link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 32 32'%3E%3Crect width='32' height='32' rx='8' fill='%23C8801C'/%3E%3Crect x='7' y='6' width='18' height='21' rx='4' fill='%23fff'/%3E%3Crect x='7' y='6' width='18' height='6' rx='4' fill='%23F6A93A'/%3E%3Cg fill='%23FFDCA6'%3E%3Crect x='10' y='15' width='4' height='3' rx='1'/%3E%3Crect x='16' y='15' width='4' height='3' rx='1'/%3E%3Crect x='22' y='15' width='3' height='3' rx='1'/%3E%3Crect x='10' y='20' width='4' height='3' rx='1'/%3E%3Crect x='16' y='20' width='4' height='3' rx='1'/%3E%3C/g%3E%3C/svg%3E">
+<style>
+  :root{
+    --bg:#0a0a0c;
+    --bg-2:#101014;
+    --panel:#16161b;
+    --panel-2:#1c1c22;
+    --line:rgba(255,255,255,.09);
+    --line-2:rgba(255,255,255,.17);
+    --ink:#f2f2f5;
+    --muted:#a8a8b4;
+    --dim:#777782;
+    --amber:#f0a93a;
+    --amber-deep:#c8801c;
+    --amber-soft:#ffdca6;
+    --ice:#aac8ea;
+    --mint:#8fd8bd;
+    --radius:16px;
+    --maxw:1080px;
+    --sans:"PingFang SC","HarmonyOS Sans SC","Microsoft YaHei UI","Microsoft YaHei",
+           -apple-system,"Segoe UI",Roboto,"Helvetica Neue",sans-serif;
+    --mono:ui-monospace,"Cascadia Mono","SF Mono",Consolas,"Liberation Mono",monospace;
+  }
+  *{box-sizing:border-box}
+  html{-webkit-text-size-adjust:100%;scroll-behavior:smooth}
+  body{
+    margin:0;background:var(--bg);color:var(--ink);font-family:var(--sans);
+    line-height:1.65;font-size:16px;-webkit-font-smoothing:antialiased;
+    background-image:
+      radial-gradient(1000px 520px at 50% -8%,#232016 0%,transparent 70%),
+      radial-gradient(700px 420px at 92% 18%,rgba(170,200,234,.07) 0%,transparent 70%);
+    background-repeat:no-repeat;
+    overflow-x:hidden;
+  }
+  a{color:var(--ice);text-decoration:none}
+  a:hover{text-decoration:underline}
+  img{max-width:100%;display:block}
+  ::selection{background:rgba(240,169,58,.3)}
+  :focus-visible{outline:2px solid var(--amber);outline-offset:3px;border-radius:6px}
+  .wrap{max-width:var(--maxw);margin:0 auto;padding:0 24px}
+
+  /* ---------------- 顶部 ---------------- */
+  header.nav{
+    position:sticky;top:0;z-index:60;
+    backdrop-filter:blur(14px);-webkit-backdrop-filter:blur(14px);
+    background:rgba(10,10,12,.78);border-bottom:1px solid var(--line);
+  }
+  .nav-in{display:flex;align-items:center;gap:20px;height:58px}
+  .brand{display:flex;align-items:center;gap:9px;color:var(--ink);font-weight:700;letter-spacing:.4px}
+  .brand:hover{text-decoration:none}
+  .brand svg{flex:none}
+  .brand small{color:var(--dim);font-weight:500;font-size:12px;letter-spacing:0;padding-left:2px}
+  .nav nav{margin-left:auto;display:flex;align-items:center;gap:22px;font-size:14px}
+  .nav nav a{color:var(--muted)}
+  .nav nav a:hover{color:var(--ink);text-decoration:none}
+  .nav .ghost{
+    border:1px solid var(--line-2);border-radius:999px;padding:6px 14px;color:var(--ink);
+    display:inline-flex;align-items:center;gap:7px;transition:border-color .16s,background .16s;
+  }
+  .nav .ghost:hover{border-color:var(--amber);background:rgba(240,169,58,.09)}
+  @media (max-width:760px){
+    .nav nav a:not(.ghost){display:none}
+  }
+
+  /* ---------------- 首屏 ---------------- */
+  .hero{padding:64px 24px 8px;text-align:center}
+  .eyebrow{
+    display:inline-flex;align-items:center;gap:8px;font-size:12.5px;letter-spacing:.12em;
+    color:var(--muted);text-transform:uppercase;border:1px solid var(--line);
+    padding:6px 13px;border-radius:999px;background:rgba(255,255,255,.02);margin:0 0 22px;
+  }
+  .eyebrow b{color:var(--amber-soft);font-weight:600;letter-spacing:.04em}
+  h1{
+    font-size:clamp(38px,7vw,68px);line-height:1.1;margin:0 0 18px;letter-spacing:-.02em;
+    font-weight:800;
+  }
+  h1 em{
+    font-style:normal;position:relative;color:var(--amber-soft);white-space:nowrap;
+    padding:0 2px;isolation:isolate;
+  }
+  h1 em::after{
+    content:"";position:absolute;left:2px;right:2px;bottom:-.02em;height:.055em;
+    background:var(--amber);border-radius:999px;z-index:-1;
+  }
+  .lede{
+    max-width:660px;margin:0 auto;color:var(--muted);font-size:clamp(15px,2.2vw,17.5px);
+  }
+  .lede b{color:var(--ink);font-weight:600}
+  kbd,code{
+    font-family:var(--mono);font-size:.86em;padding:2px 6px;border-radius:5px;color:var(--ink);
+    background:var(--panel-2);border:1px solid var(--line-2);white-space:nowrap;
+  }
+  .cta{display:flex;flex-wrap:wrap;gap:12px;justify-content:center;align-items:center;margin:30px 0 14px}
+  .btn{
+    display:inline-flex;align-items:center;gap:10px;padding:12px 20px;border-radius:11px;
+    font-weight:650;font-size:15px;border:1px solid var(--line-2);color:var(--ink);
+    background:var(--panel);transition:transform .12s,border-color .16s,background .16s;
+  }
+  .btn:hover{text-decoration:none;border-color:var(--amber);background:var(--panel-2)}
+  .btn:active{transform:translateY(1px)}
+  .btn .sz{font-size:12px;font-weight:500;color:var(--dim);font-variant-numeric:tabular-nums}
+  .btn.primary{
+    background:var(--amber-soft);color:#241a09;border-color:var(--amber-soft);
+    box-shadow:0 8px 26px rgba(240,169,58,.16);
+  }
+  .btn.primary:hover{background:#fff2da;border-color:#fff2da}
+  .btn.primary .sz{color:#7a5a24}
+  .aside-link{font-size:14px;color:var(--muted);margin-left:4px}
+  .hint{color:var(--dim);font-size:13px;margin:0 auto;max-width:620px}
+  .hint a{color:var(--muted);text-decoration:underline;text-underline-offset:3px}
+
+  /* 首屏舞台：两台手机 + 光晕 */
+  .stage{
+    position:relative;margin:46px auto 0;padding:38px 0 34px;
+    border:1px solid var(--line-2);border-radius:20px;overflow:hidden;
+    background:
+      radial-gradient(700px 360px at 50% 0%,rgba(240,169,58,.13),transparent 70%),
+      linear-gradient(180deg,#15151a,#0d0d11);
+    box-shadow:0 30px 70px -30px rgba(0,0,0,.9),0 0 0 1px rgba(0,0,0,.4) inset;
+  }
+  .stage::before{
+    content:"";position:absolute;inset:0;
+    background-image:linear-gradient(rgba(255,255,255,.035) 1px,transparent 1px),
+                     linear-gradient(90deg,rgba(255,255,255,.035) 1px,transparent 1px);
+    background-size:44px 44px;mask-image:radial-gradient(600px 300px at 50% 0%,#000,transparent 75%);
+    pointer-events:none;
+  }
+  .phones{position:relative;display:flex;justify-content:center;align-items:flex-end;gap:0}
+  .phones .phone{position:relative;z-index:2}
+  .phones .phone.back{
+    z-index:1;transform:translate(-54px,26px) rotate(-5deg) scale(.9);
+    filter:brightness(.72) saturate(.9);
+  }
+  .phones .phone.front{transform:translateY(12px)}
+  .stage figcaption{
+    position:absolute;right:12px;bottom:10px;font-size:11.5px;color:#c9c9d4;z-index:4;
+    background:rgba(8,8,10,.72);border:1px solid var(--line);padding:3px 9px;border-radius:999px;
+    backdrop-filter:blur(6px);
+  }
+  @media (max-width:860px){
+    .phones .phone.back{display:none}
+    .phones .phone.front{transform:translateY(8px)}
+  }
+  @media (max-width:640px){
+    .stage{padding-top:26px}
+    .stage figcaption{display:none}
+    .phones .phone{width:272px;transform:none}
+    .phones .phone.front{margin-bottom:0;transform:translateY(4px)}
+    .phones .phone .screen{height:566px}
+    .phones .phone .appbar h4{font-size:20px}
+  }
+
+  /* 首屏两侧浮层 */
+  .hero-float{
+    position:absolute;z-index:3;display:flex;flex-direction:column;gap:3px;
+    background:rgba(14,14,18,.78);border:1px solid rgba(255,255,255,.13);border-radius:13px;
+    padding:10px 13px;text-align:left;backdrop-filter:blur(10px);-webkit-backdrop-filter:blur(10px);
+    box-shadow:0 16px 34px -18px rgba(0,0,0,.9);
+  }
+  .hero-float b{font-size:12px;font-weight:650;display:flex;align-items:center;gap:6px}
+  .hero-float span{font-size:10.5px;color:#9d9daa;white-space:nowrap}
+  .hero-float .dot{width:6px;height:6px;border-radius:50%;background:var(--amber);flex:none;
+    box-shadow:0 0 0 3px rgba(240,169,58,.14)}
+  .hero-float.l{left:3.5%;top:120px;transform:rotate(-2deg)}
+  .hero-float.r{right:3.5%;top:190px;transform:rotate(1.6deg)}
+  .hero-float.r .dot{background:var(--ice);box-shadow:0 0 0 3px rgba(170,200,234,.14)}
+  @media (max-width:980px){ .hero-float{display:none} }
+
+  /* 四格硬指标 */
+  .stats{
+    display:grid;grid-template-columns:repeat(4,1fr);gap:0;margin:30px 0 0;
+    border:1px solid var(--line);border-radius:12px;overflow:hidden;background:rgba(255,255,255,.015);
+  }
+  .stats div{padding:20px 14px;text-align:center;border-left:1px solid var(--line)}
+  .stats div:first-child{border-left:0}
+  .stats b{
+    display:block;font-size:clamp(22px,3.4vw,29px);font-weight:800;letter-spacing:-.02em;
+    font-variant-numeric:tabular-nums;color:var(--amber-soft);
+  }
+  .stats span{display:block;font-size:12.5px;color:var(--dim);margin-top:3px}
+  @media (max-width:600px){
+    .stats{grid-template-columns:repeat(2,1fr)}
+    .stats div:nth-child(3){border-left:0}
+    .stats div:nth-child(n+3){border-top:1px solid var(--line)}
+  }
+
+  /* ---------------- 区块通用 ---------------- */
+  section{padding:74px 0;scroll-margin-top:72px}
+  /* .wrap 的左右 padding 会覆盖 section 的上下留白，这里显式补回 */
+  main > section.wrap{padding-top:74px;padding-bottom:74px}
+  main > section.hero{padding-top:64px;padding-bottom:8px}
+  .sec-head{display:flex;align-items:center;gap:12px;margin:0 0 10px}
+  .sec-head svg{flex:none}
+  h2{font-size:clamp(23px,3.6vw,31px);margin:0;letter-spacing:-.01em;font-weight:750}
+  .sec-sub{color:var(--muted);margin:0 0 34px;max-width:660px}
+  .sec-sub b{color:var(--ink);font-weight:600}
+  hr.rope{border:0;height:1px;background:var(--line);margin:0}
+  .note{font-size:13px;color:#8f8f9a;margin:16px 2px 0}
+
+  /* ---------------- 三步 ---------------- */
+  .steps{display:grid;grid-template-columns:repeat(3,1fr);gap:26px}
+  .step{
+    background:#f3ead9;color:#20272f;border-radius:10px;padding:16px 16px 18px;
+    box-shadow:0 16px 34px -18px rgba(0,0,0,.85);
+    transform:rotate(-.5deg);
+  }
+  .step:nth-child(2){transform:rotate(.45deg)}
+  .step:nth-child(3){transform:rotate(-.3deg)}
+  .step .shot{
+    background:#0d0d11;border-radius:6px;padding:18px 14px;display:flex;align-items:center;
+    justify-content:center;min-height:112px;margin-bottom:14px;
+  }
+  .step h3{margin:0 0 5px;font-size:16.5px;color:#1b222a;letter-spacing:0}
+  .step p{margin:0;font-size:13.5px;color:#4b5560;line-height:1.6}
+  .step p code{font-family:var(--mono);font-size:11.5px;background:rgba(0,0,0,.07);border:0;color:#2a3440;padding:1px 5px}
+  @media (max-width:820px){
+    .steps{grid-template-columns:1fr;gap:18px}
+    .step{transform:none!important}
+  }
+
+  /* 进场（只有 JS 可用时才隐藏，避免断网/禁脚本白屏） */
+  .js .reveal{opacity:0;transform:translateY(14px);transition:opacity .5s ease,transform .5s ease}
+  .js .reveal.in{opacity:1;transform:none}
+
+  /* ---------------- 手机界面示意 ---------------- */
+  .phone{
+    width:300px;flex:none;border-radius:40px;padding:8px;
+    background:linear-gradient(160deg,#3a3a42,#141418 42%,#2a2a31);
+    box-shadow:0 40px 80px -30px rgba(0,0,0,.95),0 0 0 1px rgba(255,255,255,.12) inset;
+  }
+  .screen{
+    position:relative;border-radius:33px;overflow:hidden;background:#000;color:#f2f2f5;
+    height:610px;display:flex;flex-direction:column;
+    transition:background .35s ease,color .35s ease;
+  }
+  .screen::before{
+    content:"";position:absolute;left:50%;top:8px;transform:translateX(-50%);
+    width:78px;height:20px;border-radius:999px;background:#000;z-index:9;
+  }
+  .statusbar{
+    display:flex;align-items:center;justify-content:space-between;
+    padding:12px 20px 2px;font-size:11px;font-weight:600;color:#f2f2f5;opacity:.9;
+  }
+  .statusbar .sbi{display:flex;align-items:center;gap:5px}
+  .sbi i{display:block;width:3px;border-radius:1px;background:currentColor}
+  .sbi i:nth-child(1){height:5px}.sbi i:nth-child(2){height:7px}.sbi i:nth-child(3){height:9px}
+  .sbi .batt{width:20px;height:10px;border:1px solid currentColor;border-radius:3px;padding:1.5px}
+  .sbi .batt::after{content:"";display:block;height:100%;width:72%;background:currentColor;border-radius:2px}
+
+  .appbar{padding:14px 16px 8px}
+  .appbar h4{margin:0;font-size:22px;font-weight:800;letter-spacing:-.02em;line-height:1.25}
+  .appbar p{margin:2px 0 0;font-size:11.5px;color:#a8a8b4}
+  .screen .muted{color:#a8a8b4}
+
+  .cards{display:flex;flex-direction:column;gap:9px;padding:6px 16px 0;overflow:hidden}
+  .gcard{
+    border:1px solid rgba(255,255,255,.08);border-radius:18px;padding:11px 13px;
+    background:rgba(255,255,255,calc(.045 * var(--card-a,1)));
+    display:flex;gap:12px;align-items:flex-start;
+    backdrop-filter:blur(6px);
+  }
+  .gcard .time{
+    flex:none;width:46px;text-align:center;border-right:1px solid rgba(255,255,255,.07);
+    padding-right:10px;
+  }
+  .gcard .time b{display:block;font-size:11px;font-weight:800;letter-spacing:.02em}
+  .gcard .time span{display:block;font-size:8.5px;color:#9a9aa6;line-height:1.5;font-variant-numeric:tabular-nums}
+  .gcard .info{min-width:0}
+  .gcard .info h5{margin:0;font-size:13.5px;font-weight:750;line-height:1.35;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+  .gcard .info h5.done{text-decoration:line-through;text-decoration-thickness:2px;color:#8f8f9b}
+  .gcard .info p{
+    margin:3px 0 0;font-size:10.5px;color:#9a9aa6;display:flex;align-items:center;gap:4px;
+    white-space:nowrap;overflow:hidden;text-overflow:ellipsis;
+  }
+  .gcard .info p svg{flex:none;opacity:.7}
+
+  /* 底部悬浮药丸导航 */
+  .pillnav{
+    position:absolute;left:50%;bottom:16px;transform:translateX(-50%);
+    display:flex;align-items:center;gap:4px;padding:6px;border-radius:999px;
+    background:rgba(28,28,34,.72);border:1px solid rgba(255,255,255,.16);
+    box-shadow:0 12px 30px rgba(0,0,0,.55),0 0 0 1px rgba(0,0,0,.3) inset;
+    backdrop-filter:blur(16px) saturate(150%);-webkit-backdrop-filter:blur(16px) saturate(150%);
+    z-index:8;
+  }
+  .pillnav span{
+    display:flex;align-items:center;gap:5px;font-size:10.5px;font-weight:600;color:#a8a8b4;
+    padding:7px 12px;border-radius:999px;white-space:nowrap;
+  }
+  .pillnav span.on{background:rgba(255,255,255,.14);color:#fff;box-shadow:0 1px 0 rgba(255,255,255,.14) inset}
+
+  /* 周课表网格 */
+  .wkhead{display:flex;align-items:center;justify-content:space-between;padding:0 16px}
+  .wkhead .wname{font-size:15px;font-weight:800;letter-spacing:-.01em}
+  .wkhead .wsub{font-size:10px;color:#a8a8b4;margin-top:1px}
+  .weekbar{display:flex;align-items:center;justify-content:space-between;padding:10px 16px 6px;font-size:11px;color:#c9c9d4}
+  .weekbar b{font-size:12px;font-weight:750}
+  .weekbar .arw{width:22px;height:22px;border-radius:999px;border:1px solid rgba(255,255,255,.16);display:grid;place-items:center;font-size:10px;color:#a8a8b4}
+  .grid{
+    display:grid;grid-template-columns:24px repeat(5,1fr);gap:4px;padding:0 12px;
+    font-size:9px;
+  }
+  .grid .hd{text-align:center;color:#a8a8b4;font-size:9.5px;padding:2px 0 4px;font-weight:600}
+  .grid .rail{color:#777782;font-size:8px;text-align:center;line-height:1.25;padding-top:2px;font-variant-numeric:tabular-nums}
+  .cell{
+    border-radius:6px;min-height:58px;padding:4px 5px;color:#ececf1;
+    background:rgba(255,255,255,.07);
+    background:color-mix(in srgb, var(--c,#f0a93a) 26%, transparent);
+    border-left:2px solid var(--c,#f0a93a);
+    overflow:hidden;display:flex;flex-direction:column;justify-content:center;
+  }
+  .cell b{font-size:9.5px;font-weight:650;line-height:1.3;display:block;white-space:normal;overflow:hidden;word-break:keep-all}
+  .cell span{font-size:7.5px;opacity:.8;display:block;margin-top:1px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+  .cell.empty{background:rgba(255,255,255,.02);border:1px dashed rgba(255,255,255,.08);border-left:1px dashed rgba(255,255,255,.08)}
+  .cell .tag{font-size:7px;opacity:.75}
+
+  /* 我的页 / 成绩 / 学习通 */
+  .mine{padding:8px 16px 0;display:flex;flex-direction:column;gap:7px;overflow:hidden}
+  .grp{font-size:9.5px;color:#8b8b97;letter-spacing:.12em;margin:6px 2px 0}
+  .mrow{
+    display:flex;align-items:center;gap:10px;padding:11px 13px;border-radius:15px;
+    border:1px solid rgba(255,255,255,.08);background:rgba(255,255,255,.04);font-size:12.5px;font-weight:600;
+  }
+  .mrow .ico{width:22px;height:22px;border-radius:7px;display:grid;place-items:center;flex:none;
+    background:rgba(255,255,255,.08);color:var(--ice);font-size:11px}
+  .mrow .chev{margin-left:auto;color:#777782;font-size:11px}
+  .sumrow{display:grid;grid-template-columns:repeat(3,1fr);gap:7px;padding:4px 16px 8px}
+  .sum{border:1px solid rgba(255,255,255,.08);background:rgba(255,255,255,.04);border-radius:14px;padding:10px 8px;text-align:center}
+  .sum b{display:block;font-size:17px;font-weight:800;letter-spacing:-.02em;font-variant-numeric:tabular-nums}
+  .sum span{display:block;font-size:8.5px;color:#9a9aa6;margin-top:2px}
+  .gtbl{padding:0 16px;font-size:10.5px}
+  .gtbl .tr{display:flex;align-items:center;gap:6px;padding:7px 0;border-bottom:1px solid rgba(255,255,255,.06)}
+  .gtbl .tr.h{color:#8b8b97;font-size:9px;letter-spacing:.04em;border-bottom-color:rgba(255,255,255,.1)}
+  .gtbl .c1{flex:1;min-width:0;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+  .gtbl .c2{width:28px;text-align:center;color:#a8a8b4}
+  .gtbl .c3{width:32px;text-align:center;font-variant-numeric:tabular-nums}
+  .gtbl .c4{width:38px;text-align:center;font-variant-numeric:tabular-nums;font-weight:700;color:var(--amber-soft)}
+  .tabs{display:flex;gap:6px;padding:10px 16px 8px}
+  .tabs span{flex:1;text-align:center;font-size:11px;padding:8px 0;border-radius:11px;border:1px solid rgba(255,255,255,.08);color:#a8a8b4}
+  .tabs span.on{background:rgba(255,255,255,.12);color:#fff;font-weight:700}
+  .task{
+    margin:0 16px 8px;padding:10px 12px;border-radius:15px;border:1px solid rgba(255,255,255,.08);
+    background:rgba(255,255,255,.04);
+  }
+  .task .tt{display:flex;justify-content:space-between;gap:8px;font-size:12px;font-weight:700;line-height:1.35}
+  .task .tt em{font-style:normal;font-size:9px;font-weight:600;color:var(--mint);background:rgba(143,216,189,.12);
+    border:1px solid rgba(143,216,189,.25);border-radius:999px;padding:1px 6px;flex:none;height:16px}
+  .task .tt em.hot{color:#ffb1a8;background:rgba(255,138,138,.12);border-color:rgba(255,138,138,.28)}
+  .task .ts{display:flex;justify-content:space-between;font-size:9.5px;color:#9a9aa6;margin-top:5px}
+  .task .ts b{font-weight:600;color:#c9c9d4}
+
+  /* 三个手机一排 */
+  .phone-row{display:flex;justify-content:center;gap:22px;align-items:flex-start;flex-wrap:wrap;padding-bottom:24px}
+  .phone-row .phone{transform:none}
+  .phone-row .phone:nth-child(2){transform:translateY(18px)}
+  @media (max-width:1000px){
+    .phone-row{flex-wrap:nowrap;overflow-x:auto;justify-content:flex-start;padding:0 4px 10px;
+      scroll-snap-type:x mandatory;-webkit-overflow-scrolling:touch}
+    .phone-row .phone{scroll-snap-align:center}
+    .phone-row .phone:nth-child(2){transform:none}
+    .phone-row::-webkit-scrollbar{height:5px}
+    .phone-row::-webkit-scrollbar-thumb{background:rgba(255,255,255,.16);border-radius:9px}
+    .swipe-hint{display:block}
+  }
+  .swipe-hint{display:none;text-align:right;font-size:12px;color:var(--dim);margin:8px 4px 0}
+
+  /* ---------------- 功能卡 ---------------- */
+  .feats{display:grid;grid-template-columns:1fr 1fr;gap:14px}
+  @media (max-width:760px){ .feats{grid-template-columns:1fr} }
+  .feat{
+    border:1px solid var(--line);border-radius:var(--radius);padding:20px;
+    background:linear-gradient(180deg,rgba(255,255,255,.032),rgba(255,255,255,0));
+    transition:border-color .18s,transform .18s,background .18s;
+  }
+  .feat:hover{border-color:rgba(240,169,58,.38);transform:translateY(-2px);background:linear-gradient(180deg,rgba(240,169,58,.055),rgba(255,255,255,0))}
+  .feat .fh{display:flex;align-items:center;gap:11px;margin-bottom:7px}
+  .feat .fi{
+    width:32px;height:32px;border-radius:9px;flex:none;display:grid;place-items:center;
+    background:rgba(240,169,58,.11);border:1px solid rgba(240,169,58,.24);color:var(--amber);
+  }
+  .feat h3{margin:0;font-size:16.5px;font-weight:750;letter-spacing:-.01em}
+  .feat p{margin:0;color:var(--muted);font-size:13.8px;line-height:1.7}
+  .feat p code{font-size:11.5px;padding:1px 5px;color:var(--amber-soft);background:rgba(240,169,58,.08);border-color:rgba(240,169,58,.18)}
+  .chips{display:flex;flex-wrap:wrap;gap:6px;margin-top:12px}
+  .chips i{
+    font-style:normal;font-size:11.5px;color:var(--dim);border:1px solid var(--line);
+    padding:2px 8px;border-radius:999px;background:rgba(255,255,255,.015);
+  }
+
+  /* ---------------- 主题实验室 ---------------- */
+  .lab{display:grid;grid-template-columns:1fr 300px;gap:46px;align-items:start}
+  .labdemo{display:flex;flex-direction:column;align-items:center;gap:12px;width:100%}
+  .demo-hint{font-size:12.5px;color:var(--dim);text-align:center;margin:0;line-height:1.6}
+  @media (max-width:900px){ .lab{grid-template-columns:1fr;gap:28px;justify-items:center} .lab .labcopy{width:100%} }
+  .labcopy p{color:var(--muted);font-size:14.5px;margin:0 0 18px;max-width:520px}
+  .labcopy p b{color:var(--ink);font-weight:600}
+  .pal-label{font-size:11.5px;letter-spacing:.1em;color:var(--dim);margin:0 0 8px;text-transform:uppercase}
+  .palettes{display:flex;flex-wrap:wrap;gap:8px;margin-bottom:20px}
+  .palette{
+    display:inline-flex;align-items:center;gap:8px;font:inherit;font-size:13px;color:var(--muted);
+    background:var(--panel);border:1px solid var(--line);border-radius:999px;padding:6px 13px 6px 7px;
+    cursor:pointer;transition:border-color .16s,color .16s,background .16s;
+  }
+  .palette:hover{color:var(--ink);border-color:var(--line-2)}
+  .palette .dot{width:18px;height:18px;border-radius:50%;box-shadow:0 0 0 1px rgba(255,255,255,.16) inset}
+  .palette[aria-pressed="true"]{color:var(--ink);border-color:var(--amber);background:rgba(240,169,58,.08)}
+  .switchrow{display:flex;align-items:center;gap:10px;margin:0 0 22px;flex-wrap:wrap}
+  .seg{display:inline-flex;padding:3px;border:1px solid var(--line);border-radius:999px;background:var(--panel)}
+  .seg button{
+    font:inherit;font-size:12.5px;padding:5px 13px;border:0;border-radius:999px;cursor:pointer;
+    background:transparent;color:var(--muted);
+  }
+  .seg button[aria-pressed="true"]{background:var(--panel-2);color:var(--ink);box-shadow:0 1px 0 rgba(255,255,255,.1) inset}
+  .slider{display:flex;align-items:center;gap:12px;max-width:420px}
+  .slider label{font-size:12.5px;color:var(--muted);flex:none}
+  .slider input[type=range]{flex:1;accent-color:var(--amber);height:20px}
+  .slider output{font-size:12.5px;color:var(--amber-soft);font-variant-numeric:tabular-nums;min-width:40px;text-align:right}
+
+  /* 演示机：配色跟着按钮走 */
+  .demo-screen{
+    --p-accent:#aac8ea;--p-accent-soft:#dbe8fa;
+  }
+  .demo-screen .gcard .time b{color:var(--p-accent)}
+  .demo-screen .pillnav span.on{background:var(--p-accent);color:#15161a;box-shadow:none}
+  .demo-screen .palbadge{
+    position:absolute;right:14px;top:36px;font-size:9px;letter-spacing:.08em;color:#9a9aa6;
+    border:1px solid rgba(255,255,255,.12);border-radius:999px;padding:2px 8px;
+  }
+  .demo-screen.light{background:#f6f6f8;color:#141416}
+  .demo-screen.light .statusbar{color:#141416}
+  .demo-screen.light .appbar p{color:#6f6f78}
+  .demo-screen.light .gcard{background:rgba(0,0,0,calc(.038 * var(--card-a,1)));border-color:rgba(0,0,0,.08)}
+  .demo-screen.light .gcard .time{border-right-color:rgba(0,0,0,.08)}
+  .demo-screen.light .gcard .time span,
+  .demo-screen.light .gcard .info p{color:#6f6f78}
+  .demo-screen.light .gcard .info h5.done{color:#8a8a92}
+  .demo-screen.light .pillnav{background:rgba(255,255,255,.72);border-color:rgba(0,0,0,.1)}
+  .demo-screen.light .pillnav span{color:#5c5c63}
+  .demo-screen.light .pillnav span.on{background:var(--p-accent);color:#141416}
+  .demo-screen.light .palbadge{color:#6f6f78;border-color:rgba(0,0,0,.12)}
+
+  /* ---------------- 小组件 ---------------- */
+  .widgets{display:grid;grid-template-columns:1fr 1fr;gap:18px}
+  @media (max-width:820px){ .widgets{grid-template-columns:1fr} }
+  .wcell{
+    border:1px solid var(--line);border-radius:var(--radius);padding:18px;
+    background:linear-gradient(180deg,rgba(255,255,255,.028),rgba(255,255,255,0));
+    display:flex;flex-direction:column;
+  }
+  .wcell h3{margin:14px 0 3px;font-size:15px;font-weight:700}
+  .wcell p{margin:0;font-size:13px;color:var(--muted)}
+  .wstage{display:flex;align-items:center;justify-content:center;min-height:200px;flex:1;
+    border-radius:12px;padding:16px;
+    background:
+      radial-gradient(280px 150px at 30% 12%,rgba(170,200,234,.16),transparent 70%),
+      radial-gradient(280px 160px at 82% 88%,rgba(240,169,58,.13),transparent 70%),
+      #101015;
+    border:1px solid rgba(255,255,255,.05);
+    background-image:
+      radial-gradient(280px 150px at 30% 12%,rgba(170,200,234,.16),transparent 70%),
+      radial-gradient(280px 160px at 82% 88%,rgba(240,169,58,.13),transparent 70%),
+      linear-gradient(160deg,#3d4854,#1a2129 55%,#20262e);
+  }
+  .wid{
+    width:100%;max-width:330px;background:rgba(12,12,15,.9);border:1px solid rgba(255,255,255,.1);
+    border-radius:22px;padding:12px 14px;color:#f2f2f5;
+    box-shadow:0 18px 40px -20px rgba(0,0,0,.9);
+    backdrop-filter:blur(10px);
+  }
+  .wid.tall{max-width:300px;min-height:250px;padding-bottom:16px}
+  .wid.compact{max-width:196px;aspect-ratio:1/1;display:flex;flex-direction:column;justify-content:flex-start;padding-top:16px}
+  .wid .wh{display:flex;justify-content:space-between;align-items:baseline;font-size:11px;color:#c9c9d4;margin-bottom:9px}
+  .wid .wh b{font-size:11.5px;color:#fff;font-weight:700}
+  .wid .wr{display:flex;align-items:center;gap:9px;padding:4px 0;min-width:0}
+  .wid .wr .bar{width:3.5px;height:26px;border-radius:2px;flex:none;background:var(--c,#f0a93a)}
+  .wid .wr .wt{font-size:9px;color:#b9b9c4;flex:none;font-variant-numeric:tabular-nums;width:42px;line-height:1.25}
+  .wid .wr .wn{min-width:0}
+  .wid .wr .wn b{display:block;font-size:11px;font-weight:650;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+  .wid .wr .wn span{display:block;font-size:8.5px;color:#9a9aa6;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+  .wid .empty2{font-size:10px;color:#9a9aa6;text-align:center;padding:16px 0}
+  .wid.split .cols{display:flex;gap:12px}
+  .wid.split .cols>div{flex:1;min-width:0}
+  .wid.split .cols>div+div{border-left:1px solid rgba(255,255,255,.09);padding-left:12px}
+  .wid.split{padding-bottom:16px}
+  .wid.split .colh{font-size:10px;color:#c9c9d4;margin-bottom:5px}
+  .wid .mini-note{font-size:8.5px;color:#777782;margin-top:6px}
+
+  /* ---------------- 隐私 ---------------- */
+  .safe-grid{display:grid;grid-template-columns:1.1fr .9fr;gap:36px;align-items:start}
+  @media (max-width:820px){ .safe-grid{grid-template-columns:1fr;gap:22px} }
+  .checks{list-style:none;padding:0;margin:0;display:grid;gap:15px}
+  .checks li{display:flex;gap:12px;font-size:14.5px;color:var(--muted)}
+  .checks li b{color:var(--ink);font-weight:650;display:block;margin-bottom:1px}
+  .checks svg{flex:none;margin-top:3px}
+  .checks code{font-size:11.5px;background:rgba(255,255,255,.04)}
+  .json{
+    border:1px solid var(--line);border-radius:12px;padding:15px 16px 14px;background:rgba(0,0,0,.28);
+  }
+  .json p{margin:0 0 9px;font-size:12px;color:var(--dim);letter-spacing:.04em}
+  .json pre{margin:0;font-family:var(--mono);font-size:11.5px;line-height:1.75;color:#cfd8e4;overflow-x:auto}
+  .json pre .k{color:var(--amber-soft)}
+  .json pre .s{color:var(--mint)}
+  .json pre .n{color:#9cc2f0}
+  .json .foot{margin:10px 0 0;font-size:11.5px;color:var(--dim);line-height:1.6}
+
+  .nots{display:grid;grid-template-columns:repeat(3,1fr);gap:10px;margin:0 0 22px;padding:0;list-style:none}
+  @media (max-width:760px){ .nots{grid-template-columns:repeat(2,1fr)} }
+  @media (max-width:560px){ .nots{grid-template-columns:1fr} }
+  .nots li{
+    border:1px solid var(--line);border-radius:10px;padding:11px 14px;font-size:14px;color:var(--muted);
+    background:rgba(255,255,255,.015);
+  }
+  .nots li::before{content:"✕";color:var(--dim);margin-right:9px;font-weight:700}
+  .not-to{border-left:2px solid var(--amber-deep);padding:2px 0 2px 16px;color:var(--ink);max-width:760px;font-size:14.5px}
+
+  /* ---------------- 下载 ---------------- */
+  .dl{display:grid;grid-template-columns:1fr 1fr;gap:16px}
+  @media (max-width:820px){ .dl{grid-template-columns:1fr} }
+  .dlcard{border:1px solid var(--line);border-radius:var(--radius);padding:22px;background:linear-gradient(180deg,rgba(255,255,255,.03),transparent)}
+  .dlcard h3{margin:0 0 6px;font-size:17px}
+  .dlcard p{margin:0 0 14px;font-size:13.5px;color:var(--muted)}
+  .dlcard .btn{width:100%;justify-content:center}
+  .dlcard .btn+.btn{margin-top:9px;background:transparent}
+  .dlcard .fine{font-size:12px;color:var(--dim);margin:12px 0 0;line-height:1.65}
+  .build{margin:16px 0 0;background:rgba(0,0,0,.35);border:1px solid var(--line);border-radius:12px;padding:14px 16px;overflow-x:auto}
+  .build code{display:block;background:0;border:0;padding:0;font-size:12px;line-height:1.9;color:#cfd8e4;white-space:pre}
+  .build code .cm{color:#6f7c8a}
+  .disclaimer{margin:22px 0 0;font-size:12.5px;color:var(--dim);line-height:1.75;border-top:1px solid var(--line);padding-top:16px;max-width:860px}
+
+  /* ---------------- FAQ ---------------- */
+  details{border-bottom:1px solid var(--line);padding:6px 0}
+  details summary{
+    cursor:pointer;list-style:none;padding:15px 34px 15px 0;position:relative;
+    font-weight:640;font-size:15.5px;
+  }
+  details summary::-webkit-details-marker{display:none}
+  details summary::after{
+    content:"+";position:absolute;right:6px;top:12px;color:var(--amber);font-weight:400;
+    font-size:22px;line-height:1;transition:transform .18s;
+  }
+  details[open] summary::after{transform:rotate(45deg)}
+  details .ans{padding:0 34px 16px 0;color:var(--muted);font-size:14.5px}
+  details .ans p{margin:0 0 10px}
+  details .ans p:last-child{margin-bottom:0}
+
+  /* ---------------- 底部 ---------------- */
+  footer{border-top:1px solid var(--line);padding:38px 0 54px;color:var(--dim);font-size:13.5px}
+  .foot{display:flex;flex-wrap:wrap;gap:18px 34px;align-items:flex-start;justify-content:space-between}
+  .foot a{color:var(--muted)}
+  .foot p{margin:0}
+  .foot .col{display:grid;gap:7px}
+  .foot .fine{max-width:540px;line-height:1.7}
+
+  @media (prefers-reduced-motion:reduce){
+    *{transition:none!important;animation:none!important}
+    html{scroll-behavior:auto}
+  }
+</style>
+</head>
+<body>
+<header class="nav">
+  <div class="wrap nav-in">
+    <a class="brand" href="./">
+      <svg width="22" height="22" viewBox="0 0 32 32" aria-hidden="true">
+        <rect width="32" height="32" rx="8" fill="#C8801C"/>
+        <rect x="7" y="6" width="18" height="21" rx="4" fill="#fff"/>
+        <path d="M7 10a4 4 0 014-4h10a4 4 0 014 4v2H7z" fill="#F6A93A"/>
+        <g fill="#FFDCA6">
+          <rect x="10" y="15" width="4" height="3" rx="1"/><rect x="16" y="15" width="4" height="3" rx="1"/>
+          <rect x="22" y="15" width="2.6" height="3" rx="1"/><rect x="10" y="20" width="4" height="3" rx="1"/>
+          <rect x="16" y="20" width="4" height="3" rx="1"/>
+        </g>
+      </svg>
+      课程表 <small>AnonSchedule</small>
+    </a>
+    <nav>
+      <a href="#how">怎么用</a>
+      <a href="#features">功能</a>
+      <a href="#ui">界面</a>
+      <a href="#widgets">小组件</a>
+      <a href="#privacy">数据</a>
+      <a href="#faq">问答</a>
+      <a class="ghost" href="https://github.com/zy2755/AnonSchedule" target="_blank" rel="noopener">
+        <svg width="15" height="15" viewBox="0 0 16 16" fill="currentColor" aria-hidden="true"><path d="M8 0C3.58 0 0 3.58 0 8c0 3.54 2.29 6.53 5.47 7.59.4.07.55-.17.55-.38 0-.19-.01-.82-.01-1.49-2.01.37-2.53-.49-2.69-.94-.09-.23-.48-.94-.82-1.13-.28-.15-.68-.52-.01-.53.63-.01 1.08.58 1.23.82.72 1.21 1.87.87 2.33.66.07-.52.28-.87.51-1.07-1.78-.2-3.64-.89-3.64-3.95 0-.87.31-1.59.82-2.15-.08-.2-.36-1.02.08-2.12 0 0 .67-.21 2.2.82.64-.18 1.32-.27 2-.27.68 0 1.36.09 2 .27 1.53-1.04 2.2-.82 2.2-.82.44 1.1.16 1.92.08 2.12.51.56.82 1.27.82 2.15 0 3.07-1.87 3.75-3.65 3.95.29.25.54.73.54 1.48 0 1.07-.01 1.93-.01 2.2 0 .21.15.46.55.38A8.01 8.01 0 0016 8c0-4.42-3.58-8-8-8z"/></svg>
+        GitHub
+      </a>
+    </nav>
+  </div>
+</header>
+
+<main>
+
+<section class="hero wrap" style="padding-top:64px">
+  <p class="eyebrow"><b>Android</b> · 开源 · Apache-2.0</p>
+  <h1>课表，<em>不用记</em>。</h1>
+  <p class="lede">
+    一周的课、从教务导出的安排、学习通的作业与考试、期末的成绩单——
+    收进同一个 Android 应用。<b>没有账号、没有云、没有后台服务器</b>，
+    所有数据以 JSON 存在手机的应用私有目录里。
+  </p>
+
+  <div class="cta">
+    <a class="btn primary" href="https://github.com/zy2755/AnonSchedule/releases/latest" target="_blank" rel="noopener">
+      下载 APK <span class="sz">GitHub Releases</span>
+    </a>
+    <a class="btn" href="https://github.com/zy2755/AnonSchedule" target="_blank" rel="noopener">查看源码</a>
+    <a class="aside-link" href="#how">先看看怎么用 →</a>
+  </div>
+  <p class="hint">
+    v1.0.17 · Android 8.0 及以上 · 未上架应用商店，安装时需允许「未知来源」
+  </p>
+
+  <figure class="stage">
+    <div class="hero-float l">
+      <b><span class="dot"></span>今天 4 节课</b>
+      <span>第 12 周 · 周一</span>
+    </div>
+    <div class="hero-float r">
+      <b><span class="dot"></span>上课提醒</b>
+      <span>10 分钟后 · 高等数学 A · A301</span>
+    </div>
+    <div class="phones">
+      <!-- 周课表（后） -->
+      <div class="phone back">
+        <div class="screen">
+          <div class="statusbar"><span>08:12</span><span class="sbi"><i></i><i></i><i></i><span class="batt"></span></span></div>
+          <div class="appbar" style="padding-bottom:2px">
+            <div class="wkhead" style="padding:0">
+              <div>
+                <div class="wname">我的课表</div>
+                <div class="wsub">2026 秋 · 共 20 周</div>
+              </div>
+              <div class="wsub">⋯</div>
+            </div>
+          </div>
+          <div class="weekbar">
+            <span class="arw">‹</span><b>第 12 周</b><span class="arw">›</span>
+          </div>
+          <div class="grid">
+            <div></div><div class="hd">周一</div><div class="hd">周二</div><div class="hd">周三</div><div class="hd">周四</div><div class="hd">周五</div>
+
+            <div class="rail">1-2</div>
+            <div class="cell" style="--c:#f0b35a"><b>高数</b></div>
+            <div class="cell empty"></div>
+            <div class="cell" style="--c:#9fc6ea"><b>英语</b></div>
+            <div class="cell empty"></div>
+            <div class="cell" style="--c:#f3a58a"><b>体育</b></div>
+
+            <div class="rail">3-4</div>
+            <div class="cell" style="--c:#f0b35a"><b>高数</b></div>
+            <div class="cell" style="--c:#c3aef0"><b>数据</b></div>
+            <div class="cell empty"></div>
+            <div class="cell" style="--c:#8fd8bd"><b>计网</b></div>
+            <div class="cell" style="--c:#9fc6ea"><b>英语</b></div>
+
+            <div class="rail">5-6</div>
+            <div class="cell empty"></div>
+            <div class="cell" style="--c:#9fc6ea"><b>英语</b></div>
+            <div class="cell" style="--c:#c3aef0"><b>数据</b></div>
+            <div class="cell" style="--c:#f3a58a"><b>体育</b></div>
+            <div class="cell empty"></div>
+
+            <div class="rail">7-8</div>
+            <div class="cell" style="--c:#8fd8bd"><b>计网</b></div>
+            <div class="cell empty"></div>
+            <div class="cell" style="--c:#a9b6c9"><b>思政</b></div>
+            <div class="cell empty"></div>
+            <div class="cell" style="--c:#c3aef0"><b>数据</b></div>
+
+            <div class="rail">9-10</div>
+            <div class="cell empty"></div>
+            <div class="cell" style="--c:#c3aef0"><b>实验</b></div>
+            <div class="cell empty"></div>
+            <div class="cell empty"></div>
+            <div class="cell empty"></div>
+
+            <div class="rail">11-12</div>
+            <div class="cell empty"></div>
+            <div class="cell empty"></div>
+            <div class="cell" style="--c:#a9b6c9"><b>公选</b></div>
+            <div class="cell empty"></div>
+            <div class="cell empty"></div>
+          </div>
+          <div class="pillnav">
+            <span>今日</span><span class="on">课表</span><span>我的</span>
+          </div>
+        </div>
+      </div>
+
+      <!-- 今日课表（前） -->
+      <div class="phone front">
+        <div class="screen">
+          <div class="statusbar"><span>08:12</span><span class="sbi"><i></i><i></i><i></i><span class="batt"></span></span></div>
+          <div class="appbar">
+            <h4>今日课表</h4>
+            <p>11月17日 · 周一 · 第 12 周</p>
+          </div>
+          <div class="cards">
+            <div class="gcard">
+              <div class="time"><b style="color:#f0b35a">1-2 节</b><span>08:40</span><span>10:00</span></div>
+              <div class="info">
+                <h5>高等数学 A</h5>
+                <p><svg width="9" height="9" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.6"><circle cx="8" cy="5" r="2.6"/><path d="M2.8 13.5c0-2.6 2.3-4.2 5.2-4.2s5.2 1.6 5.2 4.2"/></svg> 马老师</p>
+                <p><svg width="9" height="9" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.6"><path d="M8 14s5-4.2 5-8A5 5 0 003 6c0 3.8 5 8 5 8z"/><circle cx="8" cy="6" r="1.8"/></svg> 教学楼 A301</p>
+              </div>
+            </div>
+            <div class="gcard">
+              <div class="time"><b style="color:#9fc6ea">3-4 节</b><span>10:05</span><span>11:25</span></div>
+              <div class="info">
+                <h5>大学英语（读写）</h5>
+                <p><svg width="9" height="9" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.6"><circle cx="8" cy="5" r="2.6"/><path d="M2.8 13.5c0-2.6 2.3-4.2 5.2-4.2s5.2 1.6 5.2 4.2"/></svg> 李老师</p>
+                <p><svg width="9" height="9" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.6"><path d="M8 14s5-4.2 5-8A5 5 0 003 6c0 3.8 5 8 5 8z"/><circle cx="8" cy="6" r="1.8"/></svg> 外语楼 208</p>
+              </div>
+            </div>
+            <div class="gcard">
+              <div class="time"><b style="color:#c3aef0">5-6 节</b><span>13:20</span><span>14:55</span></div>
+              <div class="info">
+                <h5>数据结构</h5>
+                <p><svg width="9" height="9" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.6"><circle cx="8" cy="5" r="2.6"/><path d="M2.8 13.5c0-2.6 2.3-4.2 5.2-4.2s5.2 1.6 5.2 4.2"/></svg> 陈老师</p>
+                <p><svg width="9" height="9" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.6"><path d="M8 14s5-4.2 5-8A5 5 0 003 6c0 3.8 5 8 5 8z"/><circle cx="8" cy="6" r="1.8"/></svg> 计算机楼 402</p>
+              </div>
+            </div>
+            <div class="gcard" style="opacity:.62">
+              <div class="time"><b style="color:#8fd8bd">7-8 节</b><span>15:05</span><span>16:40</span></div>
+              <div class="info">
+                <h5 class="done">计算机网络</h5>
+                <p><svg width="9" height="9" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.6"><circle cx="8" cy="5" r="2.6"/><path d="M2.8 13.5c0-2.6 2.3-4.2 5.2-4.2s5.2 1.6 5.2 4.2"/></svg> 王老师</p>
+                <p><svg width="9" height="9" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.6"><path d="M8 14s5-4.2 5-8A5 5 0 003 6c0 3.8 5 8 5 8z"/><circle cx="8" cy="6" r="1.8"/></svg> 计算机楼 305</p>
+              </div>
+            </div>
+          </div>
+          <div class="pillnav">
+            <span class="on">今日</span><span>课表</span><span>我的</span>
+          </div>
+        </div>
+      </div>
+    </div>
+    <figcaption>界面示意 · 按应用真实布局绘制，数据为示例</figcaption>
+  </figure>
+
+  <div class="stats">
+    <div><b>4 种</b><span>桌面小组件尺寸</span></div>
+    <div><b>6 套</b><span>主题配色 · 深浅色</span></div>
+    <div><b>2 种</b><span>课表导入方式</span></div>
+    <div><b>0 台</b><span>自有服务器</span></div>
+  </div>
+</section>
+
+<section id="how" class="wrap">
+  <div class="sec-head">
+    <svg width="14" height="16" viewBox="0 0 14 16" aria-hidden="true"><rect x="1" y="2" width="12" height="13" rx="3" fill="#c8801c"/><rect x="3.4" y="0" width="1.6" height="4" rx=".8" fill="#ffdca6"/><rect x="9" y="0" width="1.6" height="4" rx=".8" fill="#ffdca6"/><rect x="3.6" y="7" width="6.8" height="1.6" rx=".8" fill="#ffdca6"/></svg>
+    <h2>从教务到桌面，三步</h2>
+  </div>
+  <p class="sec-sub">不需要注册账号，装好就能用。导入读的是<b>你自己学校</b>的教务页面，读不到也还有 CSV 这条退路。</p>
+
+  <div class="steps">
+    <div class="step reveal">
+      <div class="shot">
+        <svg width="168" height="76" viewBox="0 0 168 76" aria-hidden="true">
+          <rect x="6" y="6" width="156" height="64" rx="7" fill="#15151a" stroke="#2e2e36"/>
+          <rect x="6" y="6" width="156" height="13" rx="7" fill="#1d1d23"/>
+          <circle cx="16" cy="12.5" r="2" fill="#f0a93a"/><circle cx="23" cy="12.5" r="2" fill="#5b5b66"/><circle cx="30" cy="12.5" r="2" fill="#5b5b66"/>
+          <rect x="18" y="27" width="62" height="8" rx="3" fill="#2a2a32"/>
+          <rect x="18" y="40" width="62" height="8" rx="3" fill="#2a2a32"/>
+          <rect x="18" y="55" width="44" height="9" rx="4.5" fill="#ffdca6"/>
+          <rect x="104" y="27" width="44" height="37" rx="4" fill="#0f0f13" stroke="#2e2e36"/>
+          <g fill="#f0a93a" opacity=".85"><rect x="108" y="32" width="10" height="6" rx="1.5"/><rect x="121" y="32" width="10" height="6" rx="1.5"/><rect x="134" y="32" width="10" height="6" rx="1.5"/><rect x="108" y="41" width="10" height="6" rx="1.5"/><rect x="121" y="41" width="10" height="6" rx="1.5"/></g>
+          <g fill="#5b6d84"><rect x="134" y="41" width="10" height="6" rx="1.5"/><rect x="108" y="50" width="10" height="6" rx="1.5"/><rect x="121" y="50" width="10" height="6" rx="1.5"/></g>
+        </svg>
+      </div>
+      <h3>把课表搬进来</h3>
+      <p>内置 WebView 登录正方教务，进到「个人课表查询」再点读取；没有教务账号也能按模板填 <code>CSV</code>，UTF-8 / GBK 都认。</p>
+    </div>
+
+    <div class="step reveal">
+      <div class="shot">
+        <svg width="168" height="76" viewBox="0 0 168 76" aria-hidden="true">
+          <rect x="10" y="8" width="148" height="60" rx="7" fill="#15151a" stroke="#2e2e36"/>
+          <rect x="18" y="15" width="34" height="7" rx="3" fill="#3a3a44"/>
+          <rect x="112" y="15" width="38" height="7" rx="3" fill="#2a2a32"/>
+          <g>
+            <rect x="18" y="29" width="18" height="10" rx="2.5" fill="#f0b35a"/>
+            <rect x="39" y="29" width="18" height="10" rx="2.5" fill="#2a2a32"/>
+            <rect x="60" y="29" width="18" height="10" rx="2.5" fill="#9fc6ea"/>
+            <rect x="81" y="29" width="18" height="10" rx="2.5" fill="#2a2a32"/>
+            <rect x="102" y="29" width="18" height="10" rx="2.5" fill="#f3a58a"/>
+            <rect x="123" y="29" width="27" height="10" rx="2.5" fill="#2a2a32"/>
+            <rect x="18" y="42" width="18" height="10" rx="2.5" fill="#f0b35a"/>
+            <rect x="39" y="42" width="18" height="10" rx="2.5" fill="#c3aef0"/>
+            <rect x="60" y="42" width="18" height="10" rx="2.5" fill="#2a2a32"/>
+            <rect x="81" y="42" width="18" height="10" rx="2.5" fill="#8fd8bd"/>
+            <rect x="102" y="42" width="18" height="10" rx="2.5" fill="#9fc6ea"/>
+            <rect x="123" y="42" width="27" height="10" rx="2.5" fill="#2a2a32"/>
+            <rect x="18" y="55" width="18" height="9" rx="2.5" fill="#2a2a32"/>
+            <rect x="39" y="55" width="18" height="9" rx="2.5" fill="#8fd8bd"/>
+            <rect x="60" y="55" width="18" height="9" rx="2.5" fill="#2a2a32"/>
+            <rect x="81" y="55" width="18" height="9" rx="2.5" fill="#a9b6c9"/>
+            <rect x="102" y="55" width="18" height="9" rx="2.5" fill="#c3aef0"/>
+            <rect x="123" y="55" width="27" height="9" rx="2.5" fill="#2a2a32"/>
+          </g>
+        </svg>
+      </div>
+      <h3>校准这一学期</h3>
+      <p>设开学日期和总周数，单双周、连堂、每天的节次时间都会自己算；周几是第一天、要不要显示周末，也能改。</p>
+    </div>
+
+    <div class="step reveal">
+      <div class="shot">
+        <svg width="168" height="76" viewBox="0 0 168 76" aria-hidden="true">
+          <rect x="8" y="10" width="74" height="56" rx="6" fill="#20262e" stroke="#3a4450"/>
+          <rect x="15" y="34" width="60" height="26" rx="5" fill="#0d0d11" stroke="#3a4450"/>
+          <rect x="20" y="38" width="22" height="3.5" rx="1.7" fill="#777782"/>
+          <rect x="20" y="45" width="3" height="10" rx="1.5" fill="#f0b35a"/><rect x="26" y="45" width="36" height="3.5" rx="1.7" fill="#cfcfd8"/>
+          <rect x="20" y="52" width="3" height="5" rx="1.5" fill="#8fd8bd"/><rect x="26" y="52" width="26" height="3.5" rx="1.7" fill="#8a8a94"/>
+          <rect x="96" y="18" width="62" height="42" rx="9" fill="#0d0d11" stroke="#f0a93a" stroke-width="1.4"/>
+          <rect x="103" y="26" width="30" height="4" rx="2" fill="#ffdca6"/>
+          <rect x="103" y="35" width="3" height="9" rx="1.5" fill="#f0b35a"/><rect x="109" y="35" width="32" height="3.5" rx="1.7" fill="#cfcfd8"/>
+          <rect x="103" y="47" width="3" height="6" rx="1.5" fill="#9fc6ea"/><rect x="109" y="47" width="22" height="3.5" rx="1.7" fill="#8a8a94"/>
+          <path d="M76 38h14" stroke="#f0a93a" stroke-width="1.4" stroke-dasharray="3 3"/>
+          <path d="M87 34l4 4-4 4" stroke="#f0a93a" stroke-width="1.4" fill="none" stroke-linecap="round" stroke-linejoin="round"/>
+        </svg>
+      </div>
+      <h3>挂到桌面上</h3>
+      <p>小组件有 2×2、4×2、4×4 和「今日 · 明日」四种尺寸；在应用里点一下就能请求添加到桌面。</p>
+    </div>
+  </div>
+</section>
+
+<hr class="rope">
+
+<section id="features" class="wrap">
+  <div class="sec-head">
+    <svg width="14" height="16" viewBox="0 0 14 16" aria-hidden="true"><rect x="1" y="2" width="12" height="13" rx="3" fill="#c8801c"/><rect x="3.4" y="0" width="1.6" height="4" rx=".8" fill="#ffdca6"/><rect x="9" y="0" width="1.6" height="4" rx=".8" fill="#ffdca6"/><rect x="3.6" y="7" width="6.8" height="1.6" rx=".8" fill="#ffdca6"/></svg>
+    <h2>它实际能做的事</h2>
+  </div>
+  <p class="sec-sub">下面每一条都对应工程里已经实现的界面与逻辑，没有“即将上线”。</p>
+
+  <div class="feats">
+    <article class="feat reveal">
+      <div class="fh">
+        <span class="fi"><svg width="17" height="17" viewBox="0 0 20 20" fill="none" stroke="currentColor" stroke-width="1.5"><rect x="3" y="4" width="14" height="13" rx="3"/><path d="M3 8h14M7 2.5v3M13 2.5v3"/><path d="M7 11.5h2M11 11.5h2M7 14.5h2"/></svg></span>
+        <h3>今日 / 周课表</h3>
+      </div>
+      <p>两套视图看同一份数据。周课表按节次排布，单双周与连堂会正确合并；今日页只留今天，<b>已上过的课自动划掉</b>。</p>
+      <div class="chips"><i>单 / 双周</i><i>自定义节次时间</i><i>隐藏周末</i><i>非本周课程淡化</i></div>
+    </article>
+
+    <article class="feat reveal">
+      <div class="fh">
+        <span class="fi"><svg width="17" height="17" viewBox="0 0 20 20" fill="none" stroke="currentColor" stroke-width="1.5"><path d="M10 2.5l7 3.6-7 3.6-7-3.6 7-3.6z"/><path d="M3 10.2l7 3.6 7-3.6M3 14l7 3.6 7-3.6"/></svg></span>
+        <h3>多套课表</h3>
+      </div>
+      <p>一个学期一套，互不干扰：课程、节次、开学日期、总周数和配色都可以单独设，切换时不用重新导入。</p>
+      <div class="chips"><i>新建 / 重命名</i><i>独立配色</i><i>独立节次</i><i>独立学期</i></div>
+    </article>
+
+    <article class="feat reveal">
+      <div class="fh">
+        <span class="fi"><svg width="17" height="17" viewBox="0 0 20 20" fill="none" stroke="currentColor" stroke-width="1.5"><path d="M10 2.5L2.5 6.5 10 10.5l7.5-4L10 2.5z"/><path d="M5 8.6v4.2c0 1.2 2.2 2.6 5 2.6s5-1.4 5-2.6V8.6"/><path d="M17.5 6.5v5"/></svg></span>
+        <h3>教务系统导入</h3>
+      </div>
+      <p>应用内打开 WebView 登录正方教务，读取 <code>kbList</code> 返回的课表；也可以按模板批量粘贴 CSV，周数支持 <code>1-8、10-16</code> 这类混搭写法。</p>
+      <div class="chips"><i>正方 zftal</i><i>CSV / GBK</i><i>预览后再确认</i></div>
+    </article>
+
+    <article class="feat reveal">
+      <div class="fh">
+        <span class="fi"><svg width="17" height="17" viewBox="0 0 20 20" fill="none" stroke="currentColor" stroke-width="1.5"><rect x="4" y="2.5" width="12" height="15" rx="2.5"/><path d="M7 6.5h6M7 10h6M7 13.5h3.5"/></svg></span>
+        <h3>学习通作业与考试</h3>
+      </div>
+      <p>登录后拉取作业和考试两个列表，带剩余时间与状态标记。<b>账号密码不保存</b>，Cookie 只在本机应用私有目录里，可以随时退出清掉。</p>
+      <div class="chips"><i>作业 / 考试分栏</i><i>剩余时间</i><i>本地 Cookie</i></div>
+    </article>
+
+    <article class="feat reveal">
+      <div class="fh">
+        <span class="fi"><svg width="17" height="17" viewBox="0 0 20 20" fill="none" stroke="currentColor" stroke-width="1.5"><path d="M3 16.5V9M8 16.5V4M13 16.5v-5M18 16.5V7"/><path d="M2 18.5h16"/></svg></span>
+        <h3>成绩与本学期汇总</h3>
+      </div>
+      <p>从教务读取成绩，按学年 / 学期分页；顶部给出加权平均分、总学分、平均绩点，往下是科目、学分、绩点与考核成绩。</p>
+      <div class="chips"><i>加权平均分</i><i>平均绩点</i><i>多学期切换</i></div>
+    </article>
+
+    <article class="feat reveal">
+      <div class="fh">
+        <span class="fi"><svg width="17" height="17" viewBox="0 0 20 20" fill="none" stroke="currentColor" stroke-width="1.5"><path d="M10 2.8a4.4 4.4 0 00-4.4 4.4c0 3.3-1.4 4.4-1.4 4.4h11.6s-1.4-1.1-1.4-4.4A4.4 4.4 0 0010 2.8z"/><path d="M8.2 15a1.9 1.9 0 003.6 0"/></svg></span>
+        <h3>上课前提醒</h3>
+      </div>
+      <p>按当天的课排精确闹钟，提前 5 / 10 / 15 / 30 分钟可选。一次只排未来 7 天，响过之后自动重排，长期只占几十个闹钟。</p>
+      <div class="chips"><i>精确闹钟</i><i>4 档提前量</i><i>7 天滚动</i></div>
+    </article>
+
+    <article class="feat reveal">
+      <div class="fh">
+        <span class="fi"><svg width="17" height="17" viewBox="0 0 20 20" fill="none" stroke="currentColor" stroke-width="1.5"><path d="M3 6.5h11l-3-3M17 13.5H6l3 3"/></svg></span>
+        <h3>调课 / 停课 / 临时加课</h3>
+      </div>
+      <p>只改某一天，不动整学期：把课挪到另一天、临时停一节，或者加一门只上几周的课，都能在课表格子里直接操作。</p>
+      <div class="chips"><i>按日期生效</i><i>单双周加课</i><i>可删除记录</i></div>
+    </article>
+
+    <article class="feat reveal">
+      <div class="fh">
+        <span class="fi"><svg width="17" height="17" viewBox="0 0 20 20" fill="none" stroke="currentColor" stroke-width="1.5"><rect x="3" y="3" width="14" height="14" rx="3.5"/><path d="M6.5 10.2l2.3 2.3 4.7-4.8"/></svg></span>
+        <h3>课程待办</h3>
+      </div>
+      <p>每门课下可以挂一条计划，比如「周四交实验报告」；勾掉后记录仍保留，复习这门课时能看到自己做过什么。</p>
+      <div class="chips"><i>按课程归类</i><i>完成记录</i><i>可关闭</i></div>
+    </article>
+  </div>
+</section>
+
+<hr class="rope">
+<section id="ui" class="wrap">
+  <div class="sec-head">
+    <svg width="14" height="16" viewBox="0 0 14 16" aria-hidden="true"><rect x="1" y="2" width="12" height="13" rx="3" fill="#c8801c"/><rect x="3.4" y="0" width="1.6" height="4" rx=".8" fill="#ffdca6"/><rect x="9" y="0" width="1.6" height="4" rx=".8" fill="#ffdca6"/><rect x="3.6" y="7" width="6.8" height="1.6" rx=".8" fill="#ffdca6"/></svg>
+    <h2>界面不是一层壳</h2>
+  </div>
+  <p class="sec-sub">三个主页面：今日、课表、我的。二级页面从「我的」往下走，悬浮药丸导航一直留在底部。</p>
+
+  <div class="phone-row">
+    <!-- 我的 -->
+    <div class="phone">
+      <div class="screen">
+        <div class="statusbar"><span>08:12</span><span class="sbi"><i></i><i></i><i></i><span class="batt"></span></span></div>
+        <div class="appbar">
+          <h4>我的</h4>
+          <p>当前课表：2026 秋 · 共 8 门课</p>
+        </div>
+        <div class="mine">
+          <div class="grp">通用</div>
+          <div class="mrow"><span class="ico">⚙</span>设置<span class="chev">›</span></div>
+          <div class="mrow"><span class="ico">⇅</span>备份与恢复<span class="chev">›</span></div>
+          <div class="grp">外观</div>
+          <div class="mrow"><span class="ico">◐</span>卡片不透明度<span class="chev">›</span></div>
+          <div class="grp">教务</div>
+          <div class="mrow"><span class="ico">▤</span>成绩查询<span class="chev">›</span></div>
+          <div class="mrow"><span class="ico">▦</span>学业情况查询<span class="chev">›</span></div>
+          <div class="grp">学习通</div>
+          <div class="mrow"><span class="ico">☰</span>我的作业 / 考试<span class="chev">›</span></div>
+        </div>
+        <div class="pillnav"><span>今日</span><span>课表</span><span class="on">我的</span></div>
+      </div>
+    </div>
+
+    <!-- 成绩 -->
+    <div class="phone">
+      <div class="screen">
+        <div class="statusbar"><span>08:12</span><span class="sbi"><i></i><i></i><i></i><span class="batt"></span></span></div>
+        <div class="appbar" style="padding-bottom:0">
+          <h4>成绩</h4>
+          <p>2025-2026 学年 第二学期</p>
+        </div>
+        <div class="sumrow">
+          <div class="sum"><b>86.4</b><span>加权平均分</span></div>
+          <div class="sum"><b>23.5</b><span>总学分</span></div>
+          <div class="sum"><b>3.42</b><span>平均绩点</span></div>
+        </div>
+        <div class="gtbl">
+          <div class="tr h"><span class="c1">科目</span><span class="c2">学分</span><span class="c3">绩点</span><span class="c4">考核</span></div>
+          <div class="tr"><span class="c1">高等数学 A</span><span class="c2">5.0</span><span class="c3">4.0</span><span class="c4">92</span></div>
+          <div class="tr"><span class="c1">数据结构</span><span class="c2">4.0</span><span class="c3">3.7</span><span class="c4">89</span></div>
+          <div class="tr"><span class="c1">大学英语（读写）</span><span class="c2">3.0</span><span class="c3">3.3</span><span class="c4">84</span></div>
+          <div class="tr"><span class="c1">计算机网络</span><span class="c2">3.5</span><span class="c3">3.0</span><span class="c4">81</span></div>
+          <div class="tr"><span class="c1">程序设计实验</span><span class="c2">2.0</span><span class="c3">3.7</span><span class="c4">90</span></div>
+          <div class="tr"><span class="c1">体育（羽毛球）</span><span class="c2">1.0</span><span class="c3">3.7</span><span class="c4">88</span></div>
+          <div class="tr"><span class="c1">形势与政策</span><span class="c2">1.0</span><span class="c3">3.3</span><span class="c4">良好</span></div>
+        </div>
+        <div class="pillnav"><span>今日</span><span>课表</span><span class="on">我的</span></div>
+      </div>
+    </div>
+
+    <!-- 学习通 -->
+    <div class="phone">
+      <div class="screen">
+        <div class="statusbar"><span>08:12</span><span class="sbi"><i></i><i></i><i></i><span class="batt"></span></span></div>
+        <div class="appbar" style="padding-bottom:0">
+          <h4>学习通任务</h4>
+          <p>作业 12 · 考试 2</p>
+        </div>
+        <div class="tabs"><span class="on">作业 12</span><span>考试 2</span></div>
+        <div class="task">
+          <div class="tt"><span>第 12 周 数据结构实验报告</span><em class="hot">剩 2 天</em></div>
+          <div class="ts"><span>未提交</span><b>实验楼 402</b></div>
+        </div>
+        <div class="task">
+          <div class="tt"><span>Unit 6 听力练习</span><em>剩 4 天</em></div>
+          <div class="ts"><span>未提交</span><b>大学英语</b></div>
+        </div>
+        <div class="task">
+          <div class="tt"><span>第 5 章 随堂测验</span><em>已完成</em></div>
+          <div class="ts"><span>已提交</span><b>计算机网络</b></div>
+        </div>
+        <div class="task">
+          <div class="tt"><span>专题视频观看</span><em class="hot">剩 6 小时</em></div>
+          <div class="ts"><span>未提交</span><b>形势与政策</b></div>
+        </div>
+        <p class="mini-note" style="text-align:center;margin:10px 0 0;font-size:9.5px;color:#8b8b97">还有 8 项 · 在应用内查看全部</p>
+        <div class="pillnav"><span>今日</span><span>课表</span><span class="on">我的</span></div>
+      </div>
+    </div>
+  </div>
+  <p class="swipe-hint">左右滑动查看三张界面 →</p>
+  <p class="note">以上为按应用真实布局绘制的界面示意，课程、成绩与任务是示例数据；实际界面以安装后的版本为准。</p>
+</section>
+
+<hr class="rope">
+
+<section id="theme" class="wrap">
+  <div class="sec-head">
+    <svg width="14" height="16" viewBox="0 0 14 16" aria-hidden="true"><rect x="1" y="2" width="12" height="13" rx="3" fill="#c8801c"/><rect x="3.4" y="0" width="1.6" height="4" rx=".8" fill="#ffdca6"/><rect x="9" y="0" width="1.6" height="4" rx=".8" fill="#ffdca6"/><rect x="3.6" y="7" width="6.8" height="1.6" rx=".8" fill="#ffdca6"/></svg>
+    <h2>六套配色，玻璃是活的</h2>
+  </div>
+  <p class="sec-sub">下面可以真的点。配色、深浅、卡片透明度都是应用里的设置项，不是截图。</p>
+
+  <div class="lab">
+    <div class="labcopy">
+      <p>深浅色默认<b>跟随系统</b>，也可以手动锁定。切换时整套配色会逐帧插值，不会先闪一下再变；配色只换强调色，课程色、错误色这些语义色保持不变。</p>
+      <p><b>液态玻璃</b>打开后，底部导航栏用 Haze 做真模糊加 AGSL 边缘折射；卡片单独采样壁纸，避免把别的卡片和文字一起糊进去。关掉就退回普通磨砂，滑块仍然可调。</p>
+
+      <p class="pal-label">主题配色</p>
+      <div class="palettes" id="palettes" role="group" aria-label="主题配色">
+        <button class="palette" data-accent="#aac8ea" data-name="石墨" aria-pressed="true"><span class="dot" style="background:#aac8ea"></span>石墨</button>
+        <button class="palette" data-accent="#f3afc5" data-name="樱花粉" aria-pressed="false"><span class="dot" style="background:#f3afc5"></span>樱花粉</button>
+        <button class="palette" data-accent="#a6c6f2" data-name="海盐蓝" aria-pressed="false"><span class="dot" style="background:#a6c6f2"></span>海盐蓝</button>
+        <button class="palette" data-accent="#a0dfc8" data-name="薄荷绿" aria-pressed="false"><span class="dot" style="background:#a0dfc8"></span>薄荷绿</button>
+        <button class="palette" data-accent="#f5c79a" data-name="暖阳橙" aria-pressed="false"><span class="dot" style="background:#f5c79a"></span>暖阳橙</button>
+        <button class="palette" data-accent="#c9b6ee" data-name="紫丁香" aria-pressed="false"><span class="dot" style="background:#c9b6ee"></span>紫丁香</button>
+      </div>
+
+      <div class="switchrow">
+        <div class="seg" id="modeseg" role="group" aria-label="深浅模式">
+          <button data-mode="dark" aria-pressed="true">深色</button>
+          <button data-mode="light" aria-pressed="false">浅色</button>
+        </div>
+        <span style="font-size:12.5px;color:var(--dim)">应用里还有「跟随系统」</span>
+      </div>
+
+      <div class="slider">
+        <label for="alpha">卡片不透明度</label>
+        <input id="alpha" type="range" min="55" max="100" value="100" step="1">
+        <output id="alphaout">100%</output>
+      </div>
+    </div>
+
+    <div class="labdemo">
+    <div class="phone">
+      <div class="screen demo-screen" id="demoscreen">
+        <span class="palbadge" id="palbadge">石墨 · 深色</span>
+        <div class="statusbar"><span>08:12</span><span class="sbi"><i></i><i></i><i></i><span class="batt"></span></span></div>
+        <div class="appbar">
+          <h4>今日课表</h4>
+          <p>11月17日 · 周一 · 第 12 周</p>
+        </div>
+        <div class="cards">
+          <div class="gcard">
+            <div class="time"><b>1-2 节</b><span>08:40</span><span>10:00</span></div>
+            <div class="info">
+              <h5>高等数学 A</h5>
+              <p><svg width="9" height="9" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.6"><circle cx="8" cy="5" r="2.6"/><path d="M2.8 13.5c0-2.6 2.3-4.2 5.2-4.2s5.2 1.6 5.2 4.2"/></svg> 马老师</p>
+              <p><svg width="9" height="9" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.6"><path d="M8 14s5-4.2 5-8A5 5 0 003 6c0 3.8 5 8 5 8z"/><circle cx="8" cy="6" r="1.8"/></svg> 教学楼 A301</p>
+            </div>
+          </div>
+          <div class="gcard">
+            <div class="time"><b>3-4 节</b><span>10:05</span><span>11:25</span></div>
+            <div class="info">
+              <h5>大学英语（读写）</h5>
+              <p><svg width="9" height="9" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.6"><circle cx="8" cy="5" r="2.6"/><path d="M2.8 13.5c0-2.6 2.3-4.2 5.2-4.2s5.2 1.6 5.2 4.2"/></svg> 李老师</p>
+              <p><svg width="9" height="9" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.6"><path d="M8 14s5-4.2 5-8A5 5 0 003 6c0 3.8 5 8 5 8z"/><circle cx="8" cy="6" r="1.8"/></svg> 外语楼 208</p>
+            </div>
+          </div>
+          <div class="gcard">
+            <div class="time"><b>5-6 节</b><span>13:20</span><span>14:55</span></div>
+            <div class="info">
+              <h5>数据结构</h5>
+              <p><svg width="9" height="9" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.6"><circle cx="8" cy="5" r="2.6"/><path d="M2.8 13.5c0-2.6 2.3-4.2 5.2-4.2s5.2 1.6 5.2 4.2"/></svg> 陈老师</p>
+              <p><svg width="9" height="9" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.6"><path d="M8 14s5-4.2 5-8A5 5 0 003 6c0 3.8 5 8 5 8z"/><circle cx="8" cy="6" r="1.8"/></svg> 计算机楼 402</p>
+            </div>
+          </div>
+          <div class="gcard">
+            <div class="time"><b>7-8 节</b><span>15:05</span><span>16:25</span></div>
+            <div class="info">
+              <h5>计算机网络</h5>
+              <p><svg width="9" height="9" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.6"><circle cx="8" cy="5" r="2.6"/><path d="M2.8 13.5c0-2.6 2.3-4.2 5.2-4.2s5.2 1.6 5.2 4.2"/></svg> 王老师</p>
+              <p><svg width="9" height="9" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.6"><path d="M8 14s5-4.2 5-8A5 5 0 003 6c0 3.8 5 8 5 8z"/><circle cx="8" cy="6" r="1.8"/></svg> 计算机楼 305</p>
+            </div>
+          </div>
+        </div>
+        <div class="pillnav"><span class="on">今日</span><span>课表</span><span>我的</span></div>
+      </div>
+    </div>
+    <p class="demo-hint">点配色、切换深浅、拖滑块，这台演示机会实时跟着变</p>
+    </div>
+  </div>
+</section>
+
+<hr class="rope">
+<section id="widgets" class="wrap">
+  <div class="sec-head">
+    <svg width="14" height="16" viewBox="0 0 14 16" aria-hidden="true"><rect x="1" y="2" width="12" height="13" rx="3" fill="#c8801c"/><rect x="3.4" y="0" width="1.6" height="4" rx=".8" fill="#ffdca6"/><rect x="9" y="0" width="1.6" height="4" rx=".8" fill="#ffdca6"/><rect x="3.6" y="7" width="6.8" height="1.6" rx=".8" fill="#ffdca6"/></svg>
+    <h2>桌面小组件，四种尺寸</h2>
+  </div>
+  <p class="sec-sub">不打开应用也能看见下一节课。刷新跟着课表走：跨天、改课表、闹钟触发时重排；系统对后台更新的限制仍然存在。</p>
+
+  <div class="widgets">
+    <div class="wcell reveal">
+      <div class="wstage">
+        <div class="wid compact">
+          <div class="wh"><b>今天</b><span>第 12 周</span></div>
+          <div class="wr"><span class="bar" style="--c:#f0b35a"></span><span class="wt">08:40</span><span class="wn"><b>高等数学 A</b><span>A301</span></span></div>
+          <div class="wr"><span class="bar" style="--c:#9fc6ea"></span><span class="wt">10:05</span><span class="wn"><b>大学英语</b><span>外语 208</span></span></div>
+          <div class="wr"><span class="bar" style="--c:#c3aef0"></span><span class="wt">13:20</span><span class="wn"><b>数据结构</b><span>计 402</span></span></div>
+        </div>
+      </div>
+      <h3>2×2 · 今天</h3>
+      <p>只放今天接下来的几节课，扫一眼就够。</p>
+    </div>
+
+    <div class="wcell reveal">
+      <div class="wstage">
+        <div class="wid">
+          <div class="wh"><b>今日课程</b><span>周一 · 第 12 周</span></div>
+          <div class="wr"><span class="bar" style="--c:#f0b35a"></span><span class="wt">08:40<br>10:00</span><span class="wn"><b>高等数学 A</b><span>马老师 · 教学楼 A301</span></span></div>
+          <div class="wr"><span class="bar" style="--c:#9fc6ea"></span><span class="wt">10:05<br>11:25</span><span class="wn"><b>大学英语（读写）</b><span>李老师 · 外语楼 208</span></span></div>
+          <div class="wr"><span class="bar" style="--c:#c3aef0"></span><span class="wt">13:20<br>14:55</span><span class="wn"><b>数据结构</b><span>陈老师 · 计算机楼 402</span></span></div>
+        </div>
+      </div>
+      <h3>4×2 · 横向</h3>
+      <p>把地点和老师带上，放在首页第一屏。</p>
+    </div>
+
+    <div class="wcell reveal">
+      <div class="wstage" style="min-height:290px">
+        <div class="wid tall">
+          <div class="wh"><b>今日课程</b><span>11月17日 · 第 12 周</span></div>
+          <div class="wr"><span class="bar" style="--c:#f0b35a"></span><span class="wt">08:40</span><span class="wn"><b>高等数学 A</b><span>A301 · 马老师</span></span></div>
+          <div class="wr"><span class="bar" style="--c:#9fc6ea"></span><span class="wt">10:05</span><span class="wn"><b>大学英语（读写）</b><span>外语 208 · 李老师</span></span></div>
+          <div class="wr"><span class="bar" style="--c:#c3aef0"></span><span class="wt">13:20</span><span class="wn"><b>数据结构</b><span>计 402 · 陈老师</span></span></div>
+          <div class="wr"><span class="bar" style="--c:#8fd8bd"></span><span class="wt">15:05</span><span class="wn"><b>计算机网络</b><span>计 305 · 王老师</span></span></div>
+          <div class="wr"><span class="bar" style="--c:#a9b6c9"></span><span class="wt">18:40</span><span class="wn"><b>形势与政策</b><span>教 B102</span></span></div>
+          <div class="mini-note">数据来自本机课表 · 点按打开应用</div>
+        </div>
+      </div>
+      <h3>4×4 · 今日课程</h3>
+      <p>全天排满也不怕，按时间从上往下读。</p>
+    </div>
+
+    <div class="wcell reveal">
+      <div class="wstage">
+        <div class="wid split">
+          <div class="cols">
+            <div>
+              <div class="colh">今天 · 周一</div>
+              <div class="wr"><span class="bar" style="--c:#f0b35a"></span><span class="wt">08:40</span><span class="wn"><b>高等数学 A</b><span>A301</span></span></div>
+              <div class="wr"><span class="bar" style="--c:#9fc6ea"></span><span class="wt">10:05</span><span class="wn"><b>大学英语</b><span>外语 208</span></span></div>
+              <div class="wr"><span class="bar" style="--c:#c3aef0"></span><span class="wt">13:20</span><span class="wn"><b>数据结构</b><span>计 402</span></span></div>
+            </div>
+            <div>
+              <div class="colh">明天 · 周二</div>
+              <div class="wr"><span class="bar" style="--c:#c3aef0"></span><span class="wt">10:05</span><span class="wn"><b>数据结构</b><span>计 402</span></span></div>
+              <div class="wr"><span class="bar" style="--c:#9fc6ea"></span><span class="wt">13:20</span><span class="wn"><b>大学英语</b><span>外语 208</span></span></div>
+              <div class="wr"><span class="bar" style="--c:#c3aef0"></span><span class="wt">18:40</span><span class="wn"><b>程序设计实验</b><span>实验 305</span></span></div>
+            </div>
+          </div>
+          <div class="mini-note">左右分栏 · 今天和明天一眼看完</div>
+        </div>
+      </div>
+      <h3>4×2 · 今日 · 明日</h3>
+      <p>晚上看明天的课，不用切日期。</p>
+    </div>
+  </div>
+  <p class="note">小组件示意图按真实卡片结构绘制；不同桌面启动器对尺寸与圆角的处理会有差异。</p>
+</section>
+
+<hr class="rope">
+
+<section id="privacy" class="wrap">
+  <div class="sec-head">
+    <svg width="14" height="16" viewBox="0 0 14 16" aria-hidden="true"><rect x="1" y="2" width="12" height="13" rx="3" fill="#c8801c"/><rect x="3.4" y="0" width="1.6" height="4" rx=".8" fill="#ffdca6"/><rect x="9" y="0" width="1.6" height="4" rx=".8" fill="#ffdca6"/><rect x="3.6" y="7" width="6.8" height="1.6" rx=".8" fill="#ffdca6"/></svg>
+    <h2>数据只在你的手机里</h2>
+  </div>
+  <p class="sec-sub">没有账号体系，也就没有“账户数据”。这是这个项目最想认真说清楚的一件事。</p>
+
+  <div class="safe-grid">
+    <ul class="checks">
+      <li>
+        <svg width="17" height="17" viewBox="0 0 20 20" fill="none" stroke="#f0a93a" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round"><circle cx="10" cy="10" r="7.5"/><path d="M6.6 10.3l2.3 2.2 4.5-4.6"/></svg>
+        <div><b>不需要注册</b>没有登录、没有手机号、不接入任何统计 SDK，应用不收集个人信息。</div>
+      </li>
+      <li>
+        <svg width="17" height="17" viewBox="0 0 20 20" fill="none" stroke="#f0a93a" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round"><circle cx="10" cy="10" r="7.5"/><path d="M6.6 10.3l2.3 2.2 4.5-4.6"/></svg>
+        <div><b>没有自有服务器</b>课表、课程、调课记录、待办、成绩和设置，全部写在应用私有目录的 <code>data.json</code> 里。</div>
+      </li>
+      <li>
+        <svg width="17" height="17" viewBox="0 0 20 20" fill="none" stroke="#f0a93a" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round"><circle cx="10" cy="10" r="7.5"/><path d="M6.6 10.3l2.3 2.2 4.5-4.6"/></svg>
+        <div><b>学习通密码不保存</b>账号密码只在 WebView 的页面里提交；Cookie 留在本机，退出登录即可清掉。</div>
+      </li>
+      <li>
+        <svg width="17" height="17" viewBox="0 0 20 20" fill="none" stroke="#f0a93a" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round"><circle cx="10" cy="10" r="7.5"/><path d="M6.6 10.3l2.3 2.2 4.5-4.6"/></svg>
+        <div><b>备份自己拿</b>设置里可以把全部数据导出成一个 JSON，换手机时再导入；导入会覆盖当前数据，应用会先提示。</div>
+      </li>
+      <li>
+        <svg width="17" height="17" viewBox="0 0 20 20" fill="none" stroke="#f0a93a" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round"><circle cx="10" cy="10" r="7.5"/><path d="M6.6 10.3l2.3 2.2 4.5-4.6"/></svg>
+        <div><b>代码可查</b>Apache-2.0 开源，不放心可以直接读源码，或者自己构建一个装。</div>
+      </li>
+    </ul>
+
+    <div class="json">
+      <p>导出备份 = 一个 JSON 文件</p>
+      <div class="mrow" style="margin-bottom:12px">
+        <span class="ico" style="color:#ffdca6;background:rgba(240,169,58,.14)">▣</span>
+        课表备份_20261117.json
+        <span class="chev">1 个文件</span>
+      </div>
+      <div class="chips" style="margin-top:0">
+        <i>课表</i><i>课程</i><i>调课 / 停课记录</i><i>课程待办</i><i>成绩</i><i>设置</i>
+      </div>
+      <p class="foot">文件内容随版本变化，这里只说明它包含哪些数据；具体字段以实际导出为准。文件由你自己保存，应用不会上传。</p>
+    </div>
+  </div>
+</section>
+
+<hr class="rope">
+
+<section id="limits" class="wrap">
+  <div class="sec-head">
+    <svg width="14" height="16" viewBox="0 0 14 16" aria-hidden="true"><rect x="1" y="2" width="12" height="13" rx="3" fill="#c8801c"/><rect x="3.4" y="0" width="1.6" height="4" rx=".8" fill="#ffdca6"/><rect x="9" y="0" width="1.6" height="4" rx=".8" fill="#ffdca6"/><rect x="3.6" y="7" width="6.8" height="1.6" rx=".8" fill="#ffdca6"/></svg>
+    <h2>它不是什么</h2>
+  </div>
+  <p class="sec-sub">写清楚边界，比堆功能更有用。</p>
+
+  <ul class="nots">
+    <li>不是学校官方应用</li>
+    <li>不保证所有教务系统都能导入</li>
+    <li>不替代学习通或教务系统</li>
+    <li>没有云同步与多端同步</li>
+    <li>没有 iOS 版</li>
+    <li>不做成绩预测或绩点规划</li>
+  </ul>
+
+  <p class="not-to">教务和学习通的页面结构随时可能变，导入失败是正常情况。这个应用做的是「把已经能拿到的数据整理好」，而不是替你绕过学校的系统。</p>
+</section>
+
+<hr class="rope">
+
+<section id="download" class="wrap">
+  <div class="sec-head">
+    <svg width="14" height="16" viewBox="0 0 14 16" aria-hidden="true"><rect x="1" y="2" width="12" height="13" rx="3" fill="#c8801c"/><rect x="3.4" y="0" width="1.6" height="4" rx=".8" fill="#ffdca6"/><rect x="9" y="0" width="1.6" height="4" rx=".8" fill="#ffdca6"/><rect x="3.6" y="7" width="6.8" height="1.6" rx=".8" fill="#ffdca6"/></svg>
+    <h2>装一个试试</h2>
+  </div>
+  <p class="sec-sub">APK 只从 GitHub Releases 发布；源码、Issue 和更新记录都在同一个仓库里。</p>
+
+  <div class="dl">
+    <div class="dlcard">
+      <h3>直接下载</h3>
+      <p>Android 8.0 及以上。首次安装需要在系统设置里允许当前文件管理器「安装未知来源应用」。</p>
+      <a class="btn primary" href="https://github.com/zy2755/AnonSchedule/releases/latest" target="_blank" rel="noopener">
+        下载最新 APK
+        <span class="sz">GitHub Releases</span>
+      </a>
+      <a class="btn" href="https://github.com/zy2755/AnonSchedule/releases" target="_blank" rel="noopener">所有版本与更新说明</a>
+      <p class="fine">发布包由开发者自行签名，与任何应用商店无关。安装前请自行确认来源。</p>
+    </div>
+
+    <div class="dlcard">
+      <h3>自己构建</h3>
+      <p>需要 JDK 17 与 Android SDK；工程使用 Gradle Wrapper，不需要额外装 Gradle。</p>
+      <div class="build">
+        <code><span class="cm"># 克隆工程</span>
+git clone https://github.com/zy2755/AnonSchedule.git
+cd AnonSchedule
+
+<span class="cm"># Windows</span>
+gradlew.bat assembleDebug
+
+<span class="cm"># macOS / Linux</span>
+./gradlew assembleDebug</code>
+      </div>
+      <p class="fine">产物在 <code>app/build/outputs/apk/debug/</code>。仓库以 Apache-2.0 授权，改动与再分发请遵守许可证。</p>
+    </div>
+  </div>
+
+  <p class="disclaimer">
+    免责声明：这是一个个人开发的开源项目，与学校、正方教务、超星学习通均无关联，也未获得其授权。
+    应用通过你本人在 WebView 中的登录会话读取页面数据，登录凭据不会被应用保存或上传；
+    使用前请自行评估账号与数据安全，并遵守所在学校的规定。功能可能随第三方页面改版而失效。
+  </p>
+</section>
+
+<hr class="rope">
+
+<section id="faq" class="wrap">
+  <div class="sec-head">
+    <svg width="14" height="16" viewBox="0 0 14 16" aria-hidden="true"><rect x="1" y="2" width="12" height="13" rx="3" fill="#c8801c"/><rect x="3.4" y="0" width="1.6" height="4" rx=".8" fill="#ffdca6"/><rect x="9" y="0" width="1.6" height="4" rx=".8" fill="#ffdca6"/><rect x="3.6" y="7" width="6.8" height="1.6" rx=".8" fill="#ffdca6"/></svg>
+    <h2>常见问题</h2>
+  </div>
+  <p class="sec-sub">答案尽量具体，不确定的地方也写出来。</p>
+
+  <details open>
+    <summary>教务导入读不到课表怎么办？</summary>
+    <div class="ans">
+      <p>先确认学校用的是正方教务的 <code>kbList</code> 接口体系，并且在 WebView 里已经进到「个人课表查询」页面再点读取。不同学校的页面路径和参数不完全一样，没适配到的就只能用 CSV。</p>
+      <p>CSV 每行一条安排，列顺序是「课程名称, 星期, 开始节数, 结束节数, 老师, 地点, 周数」，例如 <code>高等数学,1,3,4,马老师,教学楼301,1-16</code>。周数支持连续 <code>1-16</code>、离散 <code>1、2</code>、隔周 <code>2、4、6</code>、混搭 <code>1-8、10-16</code>；编码 UTF-8 或 GBK 都能识别。</p>
+    </div>
+  </details>
+
+  <details>
+    <summary>学习通的账号密码会被保存或上传吗？</summary>
+    <div class="ans">
+      <p>不会保存密码。登录发生在学习通自己的网页里，应用只是提供 WebView；登录后的 Cookie 存在本机应用私有目录，用来请求作业和考试列表，可以随时退出登录清除。</p>
+      <p>应用没有自有服务器，也没有把 Cookie 发往第三方的代码。</p>
+    </div>
+  </details>
+
+  <details>
+    <summary>换手机、重装应用，数据怎么迁移？</summary>
+    <div class="ans">
+      <p>在设置里导出备份，得到一个 JSON 文件，自己存到网盘或电脑；在新设备上导入即可。导入会覆盖当前全部数据，操作前应用会提示。</p>
+      <p>没有自动云同步，也不会在后台悄悄上传。</p>
+    </div>
+  </details>
+
+  <details>
+    <summary>小组件不刷新是坏了吗？</summary>
+    <div class="ans">
+      <p>多数情况是系统限制。应用会在课表变更、跨天、闹钟触发时请求刷新，但 Android 会限制后台更新频率；部分厂商系统还需要把应用加入电池优化白名单。</p>
+      <p>如果长时间停在旧数据，先打开一次应用，让课表状态重新计算。</p>
+    </div>
+  </details>
+
+  <details>
+    <summary>需要一直联网吗？</summary>
+    <div class="ans">
+      <p>不需要。看课表、今日课程、待办、成绩、小组件全部离线可用；只有教务导入、学习通任务和检查更新需要网络。</p>
+    </div>
+  </details>
+
+  <details>
+    <summary>为什么不在应用商店里？</summary>
+    <div class="ans">
+      <p>个人项目，没有上架计划。APK 通过 GitHub Releases 发布，安装时系统会提示「未知来源」，确认来源是 <code>github.com/zy2755/AnonSchedule</code> 即可。</p>
+      <p>不放心的话，直接按上面的步骤自己构建。</p>
+    </div>
+  </details>
+</section>
+
+<footer>
+  <div class="wrap foot">
+    <div>
+      <a class="brand" href="./" style="margin-bottom:10px">
+        <svg width="20" height="20" viewBox="0 0 32 32" aria-hidden="true">
+          <rect width="32" height="32" rx="8" fill="#C8801C"/>
+          <rect x="7" y="6" width="18" height="21" rx="4" fill="#fff"/>
+          <path d="M7 10a4 4 0 014-4h10a4 4 0 014 4v2H7z" fill="#F6A93A"/>
+        </svg>
+        课程表 <small>AnonSchedule</small>
+      </a>
+      <p class="fine" style="margin-top:10px">一个用 Kotlin + Jetpack Compose 写的 Android 课表。个人项目，非学校官方应用。</p>
+    </div>
+    <div class="col">
+      <a href="https://github.com/zy2755/AnonSchedule" target="_blank" rel="noopener">源码仓库</a>
+      <a href="https://github.com/zy2755/AnonSchedule/releases" target="_blank" rel="noopener">版本发布</a>
+      <a href="https://github.com/zy2755/AnonSchedule/issues" target="_blank" rel="noopener">问题反馈</a>
+    </div>
+    <div class="col">
+      <p>Apache-2.0 License</p>
+      <p>Kotlin · Compose · Haze</p>
+      <p>页面无外部依赖，可离线打开</p>
+    </div>
+  </div>
+</footer>
+
+<script>
+(function () {
+  document.documentElement.classList.add('js');
+
+  /* 滚动进场 */
+  var items = document.querySelectorAll('.reveal');
+  if ('IntersectionObserver' in window) {
+    var io = new IntersectionObserver(function (entries) {
+      entries.forEach(function (e) {
+        if (e.isIntersecting) { e.target.classList.add('in'); io.unobserve(e.target); }
+      });
+    }, { rootMargin: '0px 0px -8% 0px', threshold: 0.08 });
+    items.forEach(function (el) { io.observe(el); });
+  } else {
+    items.forEach(function (el) { el.classList.add('in'); });
+  }
+
+  /* 主题实验室 */
+  var screen = document.getElementById('demoscreen');
+  var badge = document.getElementById('palbadge');
+  var palettes = document.getElementById('palettes');
+  var modeSeg = document.getElementById('modeseg');
+  var alpha = document.getElementById('alpha');
+  var alphaOut = document.getElementById('alphaout');
+  if (!screen) return;
+
+  var state = { name: '石墨', mode: 'dark' };
+
+  function paint() {
+    badge.textContent = state.name + ' · ' + (state.mode === 'dark' ? '深色' : '浅色');
+  }
+
+  palettes.addEventListener('click', function (e) {
+    var btn = e.target.closest('.palette');
+    if (!btn) return;
+    palettes.querySelectorAll('.palette').forEach(function (b) {
+      b.setAttribute('aria-pressed', String(b === btn));
+    });
+    screen.style.setProperty('--p-accent', btn.dataset.accent);
+    state.name = btn.dataset.name;
+    paint();
+  });
+
+  modeSeg.addEventListener('click', function (e) {
+    var btn = e.target.closest('button[data-mode]');
+    if (!btn) return;
+    modeSeg.querySelectorAll('button').forEach(function (b) {
+      b.setAttribute('aria-pressed', String(b === btn));
+    });
+    state.mode = btn.dataset.mode;
+    screen.classList.toggle('light', state.mode === 'light');
+    paint();
+  });
+
+  function applyAlpha() {
+    var v = Number(alpha.value);
+    screen.style.setProperty('--card-a', String(v / 100));
+    alphaOut.textContent = v + '%';
+  }
+  alpha.addEventListener('input', applyAlpha);
+  applyAlpha();
+})();
+</script>
+
+

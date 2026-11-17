@@ -101,7 +101,7 @@ ul.treeview .title i.zt3{position:absolute!important;right:7px!important;top:9px
 .more_con{overflow-x:auto!important;-webkit-overflow-scrolling:touch!important;box-sizing:border-box!important;width:auto!important;margin:6px 0 8px 16px!important;padding:4px 0!important;background:#fff!important;border:1px solid #e7ebf2!important;border-radius:10px!important}
 .more_con table{font-size:11px!important;margin:0!important;min-width:760px!important;background:#fff!important;border:0!important;border-collapse:collapse!important}
 .more_con table th,.more_con table td{padding:5px 6px!important;white-space:nowrap!important;background:#fff!important;border:0!important;vertical-align:middle!important;line-height:1.5!important}
-.more_con table th{background:#eef2f9!important;color:#4d5563!important;font-weight:600!important}
+.more_con table th{background:#eef2f9!important;color:#4d5563!important;font-weight:600!important;position:relative!important;z-index:6!important}
 .more_con table tr:nth-child(odd)>td{background:#fff!important}
 .more_con table tr:nth-child(even)>td{background:#fafbfd!important}
 .more_con table td{border-bottom:1px solid #f1f3f8!important}
@@ -157,6 +157,44 @@ private val ZF_RESTYLE_JS = """
         .replace(/\s{2,}/g,' ');
     }
   }
+  /* 表头吸顶：
+     明细表外面套了一层 overflow-x:auto 的容器，CSS 的 position:sticky 会被这个
+     滚动容器吃掉（它不纵向滚动，sticky 就退化成 static）。所以改成滚动时把表头
+     单元格往下推：表头贴住顶部，等整张表滚到底再跟着一起走。 */
+  function anonStickyThead(){
+    var wraps=document.querySelectorAll('.more_con');
+    for(var i=0;i<wraps.length;i++){
+      var wrap=wraps[i];
+      var table=wrap.querySelector('table');
+      if(!table) continue;
+      var tr=table.tHead?table.tHead.rows[0]:(table.rows[0]||null);
+      if(!tr||!tr.cells||!tr.cells.length) continue;
+      var headH=tr.offsetHeight||32;
+      var maxOff=Math.max(0,(wrap.clientHeight||table.offsetHeight)-headH);
+      var cur=parseFloat(tr.getAttribute('data-anon-top'))||0;
+      if(cur>maxOff) cur=maxOff;
+      // 用表头单元格自己的位置反推：cell 的 rect 已含当前位移，减掉就是没位移时该在的位置
+      // （注意不能量 tr，行盒不会跟着单元格的相对位移动）
+      var staticTop=tr.cells[0].getBoundingClientRect().top-cur;
+      var off=staticTop<0?Math.min(-staticTop,maxOff):0;
+      if(Math.abs(off-cur)>0.5){
+        for(var j=0;j<tr.cells.length;j++) tr.cells[j].style.top=off+'px';
+        tr.setAttribute('data-anon-top',off);
+      }
+    }
+  }
+  if(!window.__anonStickyBound){
+    window.__anonStickyBound=true;
+    var ticking=false;
+    window.__anonOnScroll=function(){
+      if(ticking) return;
+      ticking=true;
+      requestAnimationFrame(function(){ticking=false;anonStickyThead();});
+    };
+    window.addEventListener('scroll',window.__anonOnScroll,{passive:true});
+    window.addEventListener('resize',window.__anonOnScroll,{passive:true});
+  }
+  anonStickyThead();
 })();
 """
 

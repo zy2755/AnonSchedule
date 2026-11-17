@@ -8,6 +8,7 @@ import androidx.activity.ComponentActivity
 import androidx.activity.compose.BackHandler
 import androidx.activity.compose.setContent
 import androidx.activity.enableEdgeToEdge
+import androidx.core.view.WindowCompat
 import androidx.compose.animation.AnimatedVisibility
 import androidx.compose.animation.core.Animatable
 import androidx.compose.animation.core.animateFloatAsState
@@ -81,6 +82,7 @@ import androidx.compose.ui.layout.onGloballyPositioned
 import androidx.compose.ui.hapticfeedback.HapticFeedbackType
 import androidx.compose.ui.platform.LocalDensity
 import androidx.compose.ui.platform.LocalHapticFeedback
+import androidx.compose.ui.platform.LocalView
 import androidx.compose.ui.semantics.onClick
 import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.text.font.FontWeight
@@ -225,6 +227,17 @@ class MainActivity : ComponentActivity() {
         val fromWidgetShortcut = intent?.getStringExtra(EXTRA_ADD_WIDGET) == "1"
         setContent {
             val st by Repo.state.collectAsState()
+            // 状态栏 / 导航栏图标颜色跟随 App 主题，而不是系统深浅色。
+            // enableEdgeToEdge() 默认按系统 uiMode 决定图标黑白，App 内单独设成暗色、系统还是浅色时，
+            // 就会在深色页面上画出深色图标，状态栏几乎看不见（只剩绿色的电量）。
+            val appDark = isDarkMode(st.settings.themeMode)
+            val decorView = LocalView.current
+            LaunchedEffect(appDark, decorView) {
+                WindowCompat.getInsetsController(window, decorView).apply {
+                    isAppearanceLightStatusBars = !appDark
+                    isAppearanceLightNavigationBars = !appDark
+                }
+            }
             val hasBackground = st.tableSettings().backgroundPath != null
             // 切课表 / 导入备份时把持久化值同步回预览态；拖动过程中此值不变，不会覆盖实时预览
             val tableAlpha = st.tableSettings().cardAlphaPercent / 100f

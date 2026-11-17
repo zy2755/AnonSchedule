@@ -1,7 +1,6 @@
 package com.anon.schedule.ui.mine
 
 import android.webkit.WebResourceRequest
-import android.webkit.WebSettings
 import android.webkit.WebView
 import android.webkit.WebViewClient
 import androidx.compose.foundation.ExperimentalFoundationApi
@@ -40,6 +39,7 @@ import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
 import androidx.compose.material3.TopAppBar
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.DisposableEffect
 import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
@@ -63,13 +63,13 @@ import java.util.Locale
 
 // ============================ 教务成绩抓取 ============================
 
-/** 教务登录页（与「教务导入」同一个入口） */
-private const val ZF_LOGIN_URL = "http://58.56.101.14:8812/jwglxt/xtgl/login_slogin.html"
-
 /** 表格后三列固定列宽（课程名列自适应） */
 private val COL_CREDIT = 52.dp
 private val COL_POINT = 52.dp
 private val COL_SCORE = 62.dp
+
+/** 登录页提示：一次登录后，教务下的两个页面共用登录态 */
+private const val ZF_LOGIN_HINT = "请在下方页面登录教务系统，登录成功后点「读取成绩」。登录一次，「学业情况查询」也会同步登录"
 
 /**
  * 成绩读取改为原生抓取（见 [ZfGradeApi]）：WebView 只负责登录，
@@ -85,10 +85,15 @@ fun GradesScreen(onBack: () -> Unit) {
     // 视图模式：已有成绩就直接看表格（离线可看），否则先登录抓取；点「重新导入」回到登录页
     var showLogin by remember { mutableStateOf(grades.isEmpty()) }
     var url by remember { mutableStateOf(ZF_LOGIN_URL) }
-    var status by remember { mutableStateOf("请在下方页面登录教务系统，登录成功后点「读取成绩」") }
+    var status by remember { mutableStateOf(ZF_LOGIN_HINT) }
     var webView by remember { mutableStateOf<WebView?>(null) }
     var loading by remember { mutableStateOf(false) }
     val scope = rememberCoroutineScope()
+
+    // 离开页面时把登录 Cookie 落到磁盘，下次进来（哪怕进程被杀过）仍是登录态
+    DisposableEffect(Unit) {
+        onDispose { flushZfCookies() }
+    }
 
     Scaffold(
         topBar = {
@@ -137,10 +142,8 @@ fun GradesScreen(onBack: () -> Unit) {
                         .weight(1f),
                     factory = { ctx ->
                         WebView(ctx).apply {
-                            settings.javaScriptEnabled = true
-                            settings.domStorageEnabled = true
-                            settings.mixedContentMode = WebSettings.MIXED_CONTENT_COMPATIBILITY_MODE
-                            settings.userAgentString = settings.userAgentString + " CourseTableApp"
+                            // 与「学业情况查询」共用同一套设置与 UA，登录态才是通的
+                            configureZfWebView(this)
                             webViewClient = object : WebViewClient() {
                                 override fun shouldOverrideUrlLoading(
                                     view: WebView?,
@@ -198,7 +201,7 @@ fun GradesScreen(onBack: () -> Unit) {
                 grades = grades,
                 order = st.gradeTabOrder,
                 onReimport = {
-                    status = "请在下方页面登录教务系统，登录成功后点「读取成绩」"
+                    status = ZF_LOGIN_HINT
                     showLogin = true
                 }
             )

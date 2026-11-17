@@ -17,6 +17,7 @@ import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.filled.Assessment
 import androidx.compose.material.icons.filled.Bathtub
 import androidx.compose.material.icons.filled.ChevronRight
 import androidx.compose.material.icons.filled.History
@@ -42,6 +43,7 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.text.font.FontWeight
+import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import com.anon.schedule.data.Repo
@@ -65,6 +67,7 @@ private val listRowPadding = Modifier.padding(horizontal = 16.dp, vertical = 12.
 fun MineScreen(
     onSettings: () -> Unit,
     onGrades: () -> Unit,
+    onAcademic: () -> Unit,
     onUBang: () -> Unit,
     onChaoxing: () -> Unit,
     onUpdateLog: () -> Unit
@@ -131,26 +134,11 @@ fun MineScreen(
         SectionTitle("教务")
         GlassCard(
             modifier = Modifier.fillMaxWidth(),
-            onClick = onGrades,
             contentPadding = listCardPadding
         ) {
-            Row(
-                verticalAlignment = Alignment.CenterVertically,
-                modifier = Modifier
-                    .fillMaxWidth()
-                    .then(listRowPadding)
-            ) {
-                Icon(Icons.Default.School, contentDescription = null, tint = MaterialTheme.colorScheme.primary)
-                Text(
-                    "成绩查询",
-                    style = MaterialTheme.typography.bodyLarge,
-                    fontWeight = FontWeight.SemiBold,
-                    modifier = Modifier
-                        .weight(1f)
-                        .padding(start = 12.dp)
-                )
-                Icon(Icons.Default.ChevronRight, contentDescription = null, tint = MaterialTheme.colorScheme.onSurfaceVariant)
-            }
+            MineEntryRow(Icons.Default.School, "成绩查询", listRowPadding, onGrades)
+            HorizontalDivider(color = MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.20f))
+            MineEntryRow(Icons.Default.Assessment, "学业情况查询", listRowPadding, onAcademic)
         }
 
         SectionTitle("澡堂")
@@ -386,6 +374,38 @@ private fun plainReleaseNotes(raw: String): String {
         .trim()
 }
 
+
+/** 「我的」页里组内的一行：图标 + 标题 + 右侧箭头 */
+@Composable
+private fun MineEntryRow(
+    icon: ImageVector,
+    label: String,
+    rowPadding: Modifier,
+    onClick: () -> Unit
+) {
+    Row(
+        verticalAlignment = Alignment.CenterVertically,
+        modifier = Modifier
+            .fillMaxWidth()
+            .clickable(onClick = onClick)
+            .then(rowPadding)
+    ) {
+        Icon(icon, contentDescription = null, tint = MaterialTheme.colorScheme.primary)
+        Text(
+            label,
+            style = MaterialTheme.typography.bodyLarge,
+            fontWeight = FontWeight.SemiBold,
+            modifier = Modifier
+                .weight(1f)
+                .padding(start = 12.dp)
+        )
+        Icon(
+            Icons.Default.ChevronRight,
+            contentDescription = null,
+            tint = MaterialTheme.colorScheme.onSurfaceVariant
+        )
+    }
+}
 
 /**
  * 单独一个 Composable：预览态只在这里订阅。

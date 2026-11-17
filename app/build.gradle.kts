@@ -23,8 +23,8 @@ android {
         applicationId = "com.anon.schedule"
         minSdk = 26
         targetSdk = 36
-        versionCode = 12
-        versionName = "1.0.11"
+        versionCode = 14
+        versionName = "1.0.13"
     }
 
     signingConfigs {

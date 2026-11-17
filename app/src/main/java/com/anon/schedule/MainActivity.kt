@@ -98,6 +98,7 @@ import com.anon.schedule.ui.theme.GlassParams
 import com.anon.schedule.ui.theme.rememberGlassRefraction
 import com.anon.schedule.ui.importer.ImportCsvScreen
 import com.anon.schedule.ui.importer.ImportZfScreen
+import com.anon.schedule.ui.mine.AcademicScreen
 import com.anon.schedule.ui.mine.ChaoxingScreen
 import com.anon.schedule.ui.mine.GradesScreen
 import com.anon.schedule.ui.mine.MineScreen
@@ -182,6 +183,7 @@ sealed class SubPage {
     data object ImportZf : SubPage()
     data object ImportCsv : SubPage()
     data object Grades : SubPage()
+    data object Academic : SubPage()
     data object UBang : SubPage()
     data object Chaoxing : SubPage()
     data object UpdateLog : SubPage()
@@ -383,6 +385,7 @@ fun AppRoot(addWidgetShortcut: Boolean = false) {
                         MineScreen(
                             onSettings = { push(SubPage.Settings) },
                             onGrades = { push(SubPage.Grades) },
+                            onAcademic = { push(SubPage.Academic) },
                             onUBang = { push(SubPage.UBang) },
                             onChaoxing = { push(SubPage.Chaoxing) },
                             onUpdateLog = { push(SubPage.UpdateLog) }
@@ -407,6 +410,7 @@ fun AppRoot(addWidgetShortcut: Boolean = false) {
                         SubPage.ImportZf -> ImportZfScreen(onBack = { pop() })
                         SubPage.ImportCsv -> ImportCsvScreen(onBack = { pop() })
                         SubPage.Grades -> GradesScreen(onBack = { pop() })
+                        SubPage.Academic -> AcademicScreen(onBack = { pop() })
                         SubPage.UBang -> UBangScreen(onBack = { pop() })
                         SubPage.Chaoxing -> ChaoxingScreen(onBack = { pop() })
                         SubPage.UpdateLog -> UpdateLogScreen(onBack = { pop() })

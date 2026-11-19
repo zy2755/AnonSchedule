@@ -1,10 +1,14 @@
 package com.anon.schedule.ui.mine
 
 import android.annotation.SuppressLint
+import android.content.Context
 import android.os.Build
 import android.webkit.CookieManager
 import android.webkit.WebSettings
 import android.webkit.WebView
+import com.anon.schedule.data.SecurePrefs
+import org.json.JSONObject
+import java.io.File
 
 /**
  * 正方教务的 WebView 统一配置。
@@ -209,3 +213,82 @@ internal fun applyZfRestyle(view: WebView, dark: Boolean) {
         null
     )
 }
+
+/**
+ * 判断某个 URL 是不是正方的登录页。
+ *
+ * 正方会话过期后不会给你一个「请登录」的提示，而是整页换成登录页，
+ * 所以只能靠 URL 判断。
+ */
+internal fun isZfLoginUrl(url: String?): Boolean =
+    url != null && url.contains("login_slogin")
+
+/** 缓存的学业页 HTML：冷启动时先拿它顶上去，不用先看一屏登录页 */
+internal object ZfCache {
+    private const val NAME = "zf_academic.html"
+
+    fun read(context: Context): String? = runCatching {
+        val f = File(context.filesDir, NAME)
+        if (f.exists() && f.length() > 0) f.readText(Charsets.UTF_8) else null
+    }.getOrNull()
+
+    fun write(context: Context, html: String) = runCatching {
+        if (html.length < 512) return@runCatching
+        File(context.filesDir, NAME).writeText(html, Charsets.UTF_8)
+    }
+
+    fun clear(context: Context) {
+        runCatching { File(context.filesDir, NAME).delete() }
+    }
+}
+
+/**
+ * 教务账号密码（加密存本机，只用于自动登录）。
+ *
+ * 正方登录时密码会被页面里的 RSA 再加密一次，抓不到明文，所以只能让用户单独输一遍。
+ * 存法和澡堂账号一致，走 [SecurePrefs]（Keystore），不落明文、不上传。
+ */
+internal object ZfCreds {
+    private const val K_USER = "zf_user"
+    private const val K_PWD = "zf_pwd"
+
+    fun load(context: Context): Pair<String, String>? {
+        val user = SecurePrefs.getString(context, K_USER)?.takeIf { it.isNotBlank() } ?: return null
+        val pwd = SecurePrefs.getString(context, K_PWD)?.takeIf { it.isNotBlank() } ?: return null
+        return user to pwd
+    }
+
+    fun save(context: Context, user: String, pwd: String) {
+        SecurePrefs.putString(context, K_USER, user)
+        SecurePrefs.putString(context, K_PWD, pwd)
+    }
+
+    fun clear(context: Context) {
+        SecurePrefs.remove(context, K_USER)
+        SecurePrefs.remove(context, K_PWD)
+    }
+}
+
+/**
+ * 自动登录脚本：把学号密码填进正方登录页，再点页面自己的登录按钮。
+ *
+ * 密码不在我们这边加密——登录页的 `login.js` 会在提交前用页面里的 RSA 公钥处理，
+ * 所以只要把值填进 `#mm` 然后触发 `#dl` 的点击，就能复用学校自己的登录流程。
+ * 已经填过值就跳过，避免和用户手动输入打架。
+ */
+internal fun zfAutoLoginJs(user: String, pwd: String): String = """
+(function(){
+  try{
+    var y=document.getElementById('yhm'),m=document.getElementById('mm'),b=document.getElementById('dl');
+    if(!y||!m||!b) return 'noform';
+    if(y.value||m.value) return 'filled';
+    y.value=${JSONObject.quote(user)};
+    m.value=${JSONObject.quote(pwd)};
+    m.type='password';
+    y.dispatchEvent(new Event('input',{bubbles:true}));
+    m.dispatchEvent(new Event('input',{bubbles:true}));
+    setTimeout(function(){ b.click(); },80);
+    return 'ok';
+  }catch(e){ return 'err'; }
+})();
+"""

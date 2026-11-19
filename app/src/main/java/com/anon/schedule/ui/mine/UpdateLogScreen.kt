@@ -35,6 +35,20 @@ private data class UpdateEntry(val version: String, val days: List<UpdateDay>)
 /** 更新内容（新的在最上面；改动按版本归类，同一版本内再按日期分段） */
 private val updateEntries = listOf(
     UpdateEntry(
+        version = "1.1.1",
+        days = listOf(
+            UpdateDay(
+                date = "2026-11-20",
+                items = listOf(
+                    "学业情况查询：进来先显示上次的页面，不用先看一屏登录页，断网也能看",
+                    "学业情况查询：会话过期时用本机保存的学号密码自动登录，登录完自动回到学业页",
+                    "学业情况查询：右上角新增账号入口，可保存/清除自动登录的账号密码（加密存本机，不上传）",
+                    "版本：升级到 1.1.1"
+                )
+            )
+        )
+    ),
+    UpdateEntry(
         version = "1.1.0",
         days = listOf(
             UpdateDay(

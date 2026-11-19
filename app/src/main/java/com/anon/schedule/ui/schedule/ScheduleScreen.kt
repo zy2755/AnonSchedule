@@ -92,6 +92,7 @@ import androidx.compose.ui.draw.clip
 import androidx.compose.ui.draw.clipToBounds
 import androidx.compose.ui.draw.drawBehind
 import androidx.compose.ui.draw.drawWithCache
+import androidx.compose.ui.draw.drawWithContent
 import androidx.compose.ui.geometry.CornerRadius
 import androidx.compose.ui.geometry.Offset
 import androidx.compose.ui.graphics.Color
@@ -578,6 +579,7 @@ fun WeekGrid(
     val rowHeightPx = with(density) { rowHeight.toPx() }
     val headerPx = with(density) { HeaderHeight.toPx() }
     val colWidthPx = if (dayCount > 0) (gridWidthPx - timeColPx) / dayCount else 0f
+    // 被拖动的卡片在绘制阶段跳过绘制（见 DayColumn 的 drawWithContent）
 
     Box(modifier) {
         Column(
@@ -653,6 +655,7 @@ fun WeekGrid(
                         modifier = Modifier.weight(1f),
                         onClick = onClick,
                         dragEnabled = dragEnabled,
+                        dragState = drag,
                         onDragStart = { shown, node -> drag.start(shown, i, node) },
                         onDrag = { delta -> drag.offsetX += delta.x; drag.offsetY += delta.y },
                         onTripleTap = onAddAt?.let { cb -> { node -> cb(day, node) } },
@@ -991,6 +994,7 @@ private fun DayColumn(
     modifier: Modifier = Modifier,
     onClick: (ShownCourse) -> Unit,
     dragEnabled: Boolean = false,
+    dragState: CourseDragState? = null,
     onDragStart: (ShownCourse, Int) -> Unit = { _, _ -> },
     onDrag: (Offset) -> Unit = {},
     onTripleTap: ((Int) -> Unit)? = null,
@@ -1060,6 +1064,11 @@ private fun DayColumn(
 
             Column(
                 modifier = Modifier
+                    .drawWithContent {
+                        // 在绘制阶段读拖动状态：卡片被拖动时整块跳过绘制，
+                        // 但节点仍然存在，手指上的手势不会被取消
+                        if (dragState?.item?.detail?.id != d.id) drawContent()
+                    }
                     .padding(top = top)
                     .height(rowHeight * step - 4.dp)
                     .fillMaxWidth()

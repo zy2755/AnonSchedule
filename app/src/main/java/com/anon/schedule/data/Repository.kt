@@ -13,7 +13,6 @@ import kotlinx.coroutines.launch
 import kotlinx.serialization.json.Json
 import java.io.File
 import java.time.LocalDate
-import java.time.temporal.ChronoUnit
 
 /**
  * 全部数据的唯一入口：内存 StateFlow + JSON 文件持久化。
@@ -45,6 +44,7 @@ object Repo {
         _state.value = repairIds(decoded ?: AppState())
         loaded = true
         ensureStartDate()
+        alignCurrentWeek()
         save()
     }
 
@@ -63,6 +63,31 @@ object Repo {
         val newTables = st.tables.map { t ->
             val ts = t.settings
             if (ts != null && ts.startDate == null) t.copy(settings = ts.copy(startDate = inferred(ts.currentWeek))) else t
+        }
+        if (newGlobal != st.settings || newTables != st.tables) {
+            _state.value = st.copy(settings = newGlobal, tables = newTables)
+        }
+    }
+
+    /**
+     * 启动时把「当前周」校准到真实周次。
+     *
+     * 翻页会记住看的是第几周（写进 settings.currentWeek），这样下次打开还停在上次
+     * 退出时翻到的周，容易让人把"屏幕上的那一周"当成"这一周"。这里按开学日期
+     * 重新算一遍今天的真实周次覆盖掉它；没设开学日期的课表保持原样。
+     */
+    private fun alignCurrentWeek() {
+        val st = _state.value
+        val today = LocalDate.now()
+        fun aligned(s: Settings): Settings {
+            val start = s.startDate ?: return s
+            val week = CourseLogic.weekOf(LocalDate.ofEpochDay(start), today)
+                .coerceIn(1, s.maxWeek.coerceAtLeast(1))
+            return if (s.currentWeek == week) s else s.copy(currentWeek = week)
+        }
+        val newGlobal = aligned(st.settings)
+        val newTables = st.tables.map { t ->
+            t.settings?.let { ts -> t.copy(settings = aligned(ts)) } ?: t
         }
         if (newGlobal != st.settings || newTables != st.tables) {
             _state.value = st.copy(settings = newGlobal, tables = newTables)
@@ -105,6 +130,7 @@ object Repo {
         require(decoded.tables.isNotEmpty()) { "备份文件里没有课表数据" }
         _state.value = repairIds(decoded)
         ensureStartDate()
+        alignCurrentWeek()
         save()
     }
 
@@ -190,125 +216,46 @@ object Repo {
     /** 某日期属于第几周；未设置开学日期返回 null */
     fun weekOf(st: AppState, date: LocalDate, tableId: Long = st.currentTableId): Int? {
         val start = startDate(st, tableId) ?: return null
-        val days = ChronoUnit.DAYS.between(start, date)
-        return (days / 7 + 1).toInt().coerceAtLeast(1)
+        return CourseLogic.weekOf(start, date)
     }
 
     /** 第 week 周的星期 day（1=周一 ... 7=周日）对应的日期 */
     fun dateOfWeekDay(st: AppState, week: Int, day: Int, tableId: Long = st.currentTableId): LocalDate? {
         val start = startDate(st, tableId) ?: return null
-        return start.plusDays(((week - 1) * 7 + (day - 1)).toLong())
+        return CourseLogic.dateOfWeekDay(start, week, day)
     }
 
     /** 该安排在第 week 周是否有效 */
-    fun validInWeek(d: DetailBean, week: Int): Boolean {
-        if (week < d.startWeek || week > d.endWeek) return false
-        return when (d.type) {
-            1 -> week % 2 == 1
-            2 -> week % 2 == 0
-            else -> true
-        }
-    }
+    fun validInWeek(d: DetailBean, week: Int): Boolean = CourseLogic.validInWeek(d, week)
 
     /**
      * 某一天要展示的课程卡片（含临时变动处理）。
-     * @param applyChanges 是否应用调课/加课/停课记录（课表网格与今日课表都要应用）
+     * 具体规则见 [CourseLogic.dayCourses]，这里只负责把当前课表的配置取出来喂进去。
      */
-    fun dayCourses(st: AppState, date: LocalDate, week: Int, tableId: Long = st.currentTableId): List<ShownCourse> {
-        val tableDetails = st.details.filter { it.tableId == tableId }
-        val day = date.dayOfWeek.value // 1=周一 ... 7=周日
-
-        var base = tableDetails.filter { it.day == day }
-        val shown = ArrayList<ShownCourse>()
-
-        // 调课：fromDate 当天的课整体挪走 → 从当天移除，并在 toDate 当天出现
-        val movedOut = st.records.filter { it.type == 0 && it.fromDate == date.toEpochDay() }
-        val movedIn = st.records.filter { it.type == 0 && it.toDate == date.toEpochDay() }
-        // 停课
-        val suspended = st.records.filter { it.type == 2 && it.fromDate == date.toEpochDay() }
-        // 临时加课：支持跨多天（endDate）与单双周过滤，旧数据（endDate=0, parity=0）行为不变
-        val today = date.toEpochDay()
-        val added = st.records.filter { r ->
-            r.type == 1 && today >= r.fromDate &&
-                    today <= (if (r.endDate > 0L) r.endDate else r.fromDate) &&
-                    when (r.parity) {
-                        1 -> week % 2 == 1
-                        2 -> week % 2 == 0
-                        else -> true
-                    }
-        }
-
-        // 调课：fromDate 当天被挪走的课 → 从当天移除（name 为空 = 当天全部课程整体挪走）
-        for (m in movedOut) {
-            base = if (m.name.isEmpty()) emptyList()
-            else base.filter { courseOf(st, it)?.name != m.name }
-        }
-
-        for (s in suspended) {
-            base = if (s.name.isEmpty()) emptyList()
-            else base.filter { courseOf(st, it)?.name != s.name }
-        }
-
-        val showOther = st.tableSettings(tableId).showOtherWeek
-        for (d in base) {
-            val c = courseOf(st, d) ?: continue
-            val other = !validInWeek(d, week)
-            // 非本周课程：设置里关掉就不显示；另外"已经上完的"（本周已超过它的结束周）也不再显示
-            if (other && (!showOther || d.endWeek < week)) continue
-            shown += ShownCourse(d, c, other, null)
-        }
-
-        // 被挪到今天的课：取“原日期那天”本该上的课
-        for (r in movedIn) {
-            val from = LocalDate.ofEpochDay(r.fromDate)
-            val fromWeek = weekOf(st, from, tableId) ?: 1
-            for (d in tableDetails.filter { it.day == from.dayOfWeek.value && validInWeek(it, fromWeek) }) {
-                val c = courseOf(st, d) ?: continue
-                // 指定课程名的调课只挪这一门，并采用目标节次
-                if (r.name.isNotEmpty() && c.name != r.name) continue
-                val nd = if (r.name.isNotEmpty() && r.startNode >= 1) {
-                    d.copy(startNode = r.startNode, step = r.step)
-                } else d
-                shown += ShownCourse(nd, c, false, r)
-            }
-        }
-
-        // 临时加课
-        for (r in added) {
-            val ghost = CourseBean(id = -r.id, name = r.name, color = 3, tableId = tableId)
-            val d = DetailBean(
-                id = -r.id, courseId = ghost.id, day = day, room = r.room,
-                teacher = r.teacher, startNode = r.startNode, step = r.step
-            )
-            shown += ShownCourse(d, ghost, false, r)
-        }
-
-        return shown
-    }
+    fun dayCourses(st: AppState, date: LocalDate, week: Int, tableId: Long = st.currentTableId): List<ShownCourse> =
+        CourseLogic.dayCourses(
+            st = st,
+            date = date,
+            week = week,
+            tableId = tableId,
+            startDate = startDate(st, tableId),
+            showOtherWeek = st.tableSettings(tableId).showOtherWeek
+        )
 
     /**
      * 展示用的一天课程：在 [dayCourses] 基础上按课表网格的叠放规则去掉被覆盖的原课——
      * 调课/加课卡优先占位，同一节次上的当天原课不再展示（撤销变动后自动恢复）。
      * 「今日课表」页与桌面小组件都用这个口径，避免网格里已隐藏的课还出现在别处。
      */
-    fun displayDayCourses(st: AppState, date: LocalDate, week: Int, tableId: Long = st.currentTableId): List<ShownCourse> {
-        val list = dayCourses(st, date, week, tableId)
-        val used = HashSet<Int>()
-        for (item in list) {
-            if (item.record == null || item.isOther) continue
-            val d = item.detail
-            if (d.startNode < 1) continue
-            for (n in d.startNode until d.startNode + d.step.coerceAtLeast(1)) used.add(n)
-        }
-        if (used.isEmpty()) return list
-        return list.filter { item ->
-            if (item.record != null || item.isOther) true
-            else {
-                val d = item.detail
-                d.startNode < 1 || (d.startNode until d.startNode + d.step.coerceAtLeast(1)).none { it in used }
-            }
-        }
-    }
+    fun displayDayCourses(st: AppState, date: LocalDate, week: Int, tableId: Long = st.currentTableId): List<ShownCourse> =
+        CourseLogic.displayDayCourses(
+            st = st,
+            date = date,
+            week = week,
+            tableId = tableId,
+            startDate = startDate(st, tableId),
+            showOtherWeek = st.tableSettings(tableId).showOtherWeek
+        )
 }
 
 /** 网格/今日课表里展示的一张卡片 */

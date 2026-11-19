@@ -23,8 +23,8 @@ android {
         applicationId = "com.anon.schedule"
         minSdk = 26
         targetSdk = 36
-        versionCode = 18
-        versionName = "1.0.17"
+        versionCode = 21
+        versionName = "1.1.0"
     }
 
     signingConfigs {
@@ -92,4 +92,7 @@ dependencies {
     // ui 顶到 1.12.x 而反向要求 AGP 9.1 + compileSdk 36。2.x 是模块化新 API，
     // 等构建链整体升级后再迁移。
     implementation("dev.chrisbanes.haze:haze:1.7.1")
+
+    // 课表纯逻辑（CourseLogic）的单元测试，跑在 JVM 上，不需要真机
+    testImplementation("junit:junit:4.13.2")
 }

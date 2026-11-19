@@ -28,3 +28,6 @@ keystore.properties
 HANDOFF_*.md
 /jump.png
 replay_pid*.log
+
+# 宣传站工作目录（已发布到 gh-pages 分支，本地草稿不进版本库）
+/2026-11-17/

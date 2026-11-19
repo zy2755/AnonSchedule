@@ -430,7 +430,13 @@ object UBangApi {
     }
 }
 
-/** 账号与 token 的本机存储（只存本机，不上传任何第三方） */
+/**
+ * 账号与 token 的本机存储（只存本机，不上传任何第三方）。
+ *
+ * 手机号、密码、token 属于敏感值，走 [SecurePrefs]（Keystore 加密）；澡堂区域、
+ * 设备 uuid 等非敏感配置仍留在普通 SharedPreferences。旧版本写过的明文会在
+ * 首次访问时迁进加密存储并立即删除（[migrateSecrets]）。
+ */
 object UBangPrefs {
 
     private const val NAME = "ubang"
@@ -441,14 +447,40 @@ object UBangPrefs {
     private const val K_AREA_NAME = "areaName"
     private const val K_ORG_NAME = "orgName"
     private const val K_UUID = "uuid"
+    private const val K_SECRETS_MIGRATED = "secrets_migrated"
+
+    private val SECRET_KEYS = listOf(K_MOBILE, K_PASSWORD, K_TOKEN)
 
     private fun prefs(context: Context) =
         context.getSharedPreferences(NAME, Context.MODE_PRIVATE)
 
-    fun credentials(context: Context): Pair<String, String>? {
+    /**
+     * 把旧版本的明文账号/密码/token 搬进加密存储。
+     *
+     * 只有确实写进加密存储的键才删明文——Keystore 不可用时保留原值并留待下次重试，
+     * 宁可暂时留着旧数据，也不让用户莫名其妙掉登录。
+     */
+    private fun migrateSecrets(context: Context) {
         val p = prefs(context)
-        val mobile = p.getString(K_MOBILE, "")?.trim().orEmpty()
-        val password = p.getString(K_PASSWORD, "").orEmpty()
+        if (p.getBoolean(K_SECRETS_MIGRATED, false)) return
+        val editor = p.edit()
+        var allMoved = true
+        SECRET_KEYS.forEach { key ->
+            val legacy = p.getString(key, null) ?: return@forEach
+            if (SecurePrefs.putString(context, key, legacy)) {
+                editor.remove(key)
+            } else {
+                allMoved = false
+            }
+        }
+        if (allMoved) editor.putBoolean(K_SECRETS_MIGRATED, true)
+        editor.apply()
+    }
+
+    fun credentials(context: Context): Pair<String, String>? {
+        migrateSecrets(context)
+        val mobile = SecurePrefs.getString(context, K_MOBILE)?.trim().orEmpty()
+        val password = SecurePrefs.getString(context, K_PASSWORD).orEmpty()
         return if (mobile.isNotBlank() && password.isNotBlank()) mobile to password else null
     }
 
@@ -456,7 +488,10 @@ object UBangPrefs {
     fun hasSession(context: Context): Boolean =
         token(context).isNotBlank() || credentials(context) != null
 
-    fun token(context: Context): String = prefs(context).getString(K_TOKEN, "").orEmpty()
+    fun token(context: Context): String {
+        migrateSecrets(context)
+        return SecurePrefs.getString(context, K_TOKEN).orEmpty()
+    }
 
     fun orgAreaId(context: Context): Int = prefs(context).getInt(K_ORG_AREA_ID, 0)
 
@@ -475,10 +510,12 @@ object UBangPrefs {
     }
 
     fun saveLogin(context: Context, mobile: String, password: String, login: UBangApi.Login) {
+        // 先迁移旧明文，避免新写入的加密值与旧的明文同时存在
+        migrateSecrets(context)
+        SecurePrefs.putString(context, K_MOBILE, mobile)
+        SecurePrefs.putString(context, K_PASSWORD, password)
+        SecurePrefs.putString(context, K_TOKEN, login.token)
         prefs(context).edit()
-            .putString(K_MOBILE, mobile)
-            .putString(K_PASSWORD, password)
-            .putString(K_TOKEN, login.token)
             .putInt(K_ORG_AREA_ID, login.orgAreaId)
             .putString(K_AREA_NAME, login.areaName)
             .putString(K_ORG_NAME, login.orgName)
@@ -488,6 +525,11 @@ object UBangPrefs {
     /** 退出登录：清账号与 token，保留设备 uuid（协议要求恒定） */
     fun clear(context: Context) {
         val uuid = deviceUuid(context)
-        prefs(context).edit().clear().putString(K_UUID, uuid).apply()
+        // 标记已完成迁移，避免下次访问把已清除的账号又从旧明文里"迁"回来
+        prefs(context).edit().clear()
+            .putString(K_UUID, uuid)
+            .putBoolean(K_SECRETS_MIGRATED, true)
+            .apply()
+        SECRET_KEYS.forEach { SecurePrefs.remove(context, it) }
     }
 }

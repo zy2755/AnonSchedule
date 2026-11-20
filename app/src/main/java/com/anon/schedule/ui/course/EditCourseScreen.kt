@@ -16,6 +16,7 @@ import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.ArrowBack
 import androidx.compose.material.icons.filled.Check
+import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.Button
 import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.FilterChip
@@ -25,6 +26,7 @@ import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.OutlinedTextField
 import androidx.compose.material3.Scaffold
 import androidx.compose.material3.Text
+import androidx.compose.material3.TextButton
 import androidx.compose.material3.TopAppBar
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.collectAsState
@@ -38,6 +40,7 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.unit.dp
 import com.anon.schedule.data.CourseBean
+import com.anon.schedule.data.CourseLogic
 import com.anon.schedule.data.DetailBean
 import com.anon.schedule.data.Repo
 import com.anon.schedule.data.tableSettings
@@ -62,6 +65,54 @@ fun EditCourseScreen(courseId: Long, onBack: () -> Unit) {
     var endWeek by remember { mutableIntStateOf(existingDetail?.endWeek ?: st.tableSettings().maxWeek) }
     var type by remember { mutableIntStateOf(existingDetail?.type ?: 0) }
 
+    // 时间冲突：有冲突先弹窗确认，选「保留」才真正落库
+    var showConflict by remember { mutableStateOf(false) }
+    var conflictNames by remember { mutableStateOf(emptyList<String>()) }
+
+    fun save() {
+        val finalName = name.ifBlank { "未命名课程" }
+        Repo.update { s ->
+            var courses = s.courses
+            var details = s.details
+            if (existing == null) {
+                val cid = Repo.nextId()
+                courses = courses + CourseBean(cid, finalName, color, s.currentTableId)
+                details = details + DetailBean(
+                    id = Repo.nextId(), courseId = cid, day = day, room = room,
+                    teacher = teacher, startNode = startNode, step = step,
+                    startWeek = startWeek, endWeek = endWeek, type = type,
+                    tableId = s.currentTableId
+                )
+            } else {
+                courses = courses.map {
+                    if (it.id == existing.id) it.copy(name = finalName, color = color) else it
+                }
+                details = if (existingDetail == null) details else details.map {
+                    if (it.id == existingDetail.id) it.copy(
+                        day = day, room = room, teacher = teacher,
+                        startNode = startNode, step = step,
+                        startWeek = startWeek, endWeek = endWeek, type = type
+                    ) else it
+                }
+            }
+            s.copy(courses = courses, details = details)
+        }
+        onBack()
+    }
+
+    /** 保存前先查这学期同一格子里有没有别的课 */
+    fun saveWithConflictCheck() {
+        val list = CourseLogic.conflictsOf(
+            st = st, tableId = st.currentTableId, day = day, startNode = startNode, step = step,
+            startWeek = startWeek, endWeek = endWeek, type = type,
+            ignoreDetailId = existingDetail?.id
+        )
+        conflictNames = list
+            .mapNotNull { d -> st.courses.firstOrNull { it.id == d.courseId }?.name }
+            .distinct()
+        if (conflictNames.isEmpty()) save() else showConflict = true
+    }
+
     Scaffold(
         topBar = {
             TopAppBar(
@@ -72,36 +123,7 @@ fun EditCourseScreen(courseId: Long, onBack: () -> Unit) {
                     }
                 },
                 actions = {
-                    IconButton(onClick = {
-                        val finalName = name.ifBlank { "未命名课程" }
-                        Repo.update { s ->
-                            var courses = s.courses
-                            var details = s.details
-                            if (existing == null) {
-                                val cid = Repo.nextId()
-                                courses = courses + CourseBean(cid, finalName, color, s.currentTableId)
-                                details = details + DetailBean(
-                                    id = Repo.nextId(), courseId = cid, day = day, room = room,
-                                    teacher = teacher, startNode = startNode, step = step,
-                                    startWeek = startWeek, endWeek = endWeek, type = type,
-                                    tableId = s.currentTableId
-                                )
-                            } else {
-                                courses = courses.map {
-                                    if (it.id == existing.id) it.copy(name = finalName, color = color) else it
-                                }
-                                details = if (existingDetail == null) details else details.map {
-                                    if (it.id == existingDetail.id) it.copy(
-                                        day = day, room = room, teacher = teacher,
-                                        startNode = startNode, step = step,
-                                        startWeek = startWeek, endWeek = endWeek, type = type
-                                    ) else it
-                                }
-                            }
-                            s.copy(courses = courses, details = details)
-                        }
-                        onBack()
-                    }) {
+                    IconButton(onClick = { saveWithConflictCheck() }) {
                         Icon(Icons.Default.Check, contentDescription = "保存")
                     }
                 }
@@ -203,40 +225,30 @@ fun EditCourseScreen(courseId: Long, onBack: () -> Unit) {
             }
 
             Button(
-                onClick = {
-                    val finalName = name.ifBlank { "未命名课程" }
-                    Repo.update { s ->
-                        var courses = s.courses
-                        var details = s.details
-                        if (existing == null) {
-                            val cid = Repo.nextId()
-                            courses = courses + CourseBean(cid, finalName, color, s.currentTableId)
-                            details = details + DetailBean(
-                                id = Repo.nextId(), courseId = cid, day = day, room = room,
-                                teacher = teacher, startNode = startNode, step = step,
-                                startWeek = startWeek, endWeek = endWeek, type = type,
-                                tableId = s.currentTableId
-                            )
-                        } else {
-                            courses = courses.map {
-                                if (it.id == existing.id) it.copy(name = finalName, color = color) else it
-                            }
-                            details = if (existingDetail == null) details else details.map {
-                                if (it.id == existingDetail.id) it.copy(
-                                    day = day, room = room, teacher = teacher,
-                                    startNode = startNode, step = step,
-                                    startWeek = startWeek, endWeek = endWeek, type = type
-                                ) else it
-                            }
-                        }
-                        s.copy(courses = courses, details = details)
-                    }
-                    onBack()
-                },
+                onClick = { saveWithConflictCheck() },
                 modifier = Modifier.fillMaxWidth()
             ) { Text("保存") }
 
             Box(Modifier.size(24.dp))
         }
+    }
+
+    if (showConflict) {
+        AlertDialog(
+            onDismissRequest = { showConflict = false },
+            title = { Text("时间冲突") },
+            text = {
+                Text("这个时间已经有「${conflictNames.joinToString("、")}」了，还要保留吗？")
+            },
+            confirmButton = {
+                TextButton(onClick = {
+                    showConflict = false
+                    save()
+                }) { Text("保留") }
+            },
+            dismissButton = {
+                TextButton(onClick = { showConflict = false }) { Text("取消") }
+            }
+        )
     }
 }

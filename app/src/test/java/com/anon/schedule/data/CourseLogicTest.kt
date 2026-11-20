@@ -246,4 +246,63 @@ class CourseLogicTest {
         assertEquals(CourseLogic.DayCourseState.NOW, CourseLogic.stateOf(item, slots, end.minusSeconds(1)))
         assertEquals(CourseLogic.DayCourseState.DONE, CourseLogic.stateOf(item, slots, end))
     }
+
+    // ---------- 冲突检测 ----------
+
+    @Test
+    fun `节次重叠才算冲突 相邻不算`() {
+        val st = state()   // 周一 1-2 节高数、3-4 节英语
+
+        // 只占第 2 节：只有高数撞上
+        val onTop = CourseLogic.conflictsOf(st, table, day = 1, startNode = 2, step = 1)
+        assertEquals(listOf(1L), onTop.map { it.id })
+
+        // 两边都撞
+        val both = CourseLogic.conflictsOf(st, table, day = 1, startNode = 2, step = 3)
+        assertEquals(listOf(1L, 2L), both.map { it.id })
+
+        val nextDoor = CourseLogic.conflictsOf(st, table, day = 1, startNode = 5, step = 2)
+        assertTrue(nextDoor.isEmpty())
+    }
+
+    @Test
+    fun `不同星期不算冲突`() {
+        val st = state()
+        assertTrue(CourseLogic.conflictsOf(st, table, day = 3, startNode = 1, step = 2).isEmpty())
+    }
+
+    @Test
+    fun `单周和双周不会撞在一起`() {
+        val odd = courseA().copy(id = 5, type = 1)     // 单周
+        val st = state(details = listOf(odd))
+
+        assertTrue(CourseLogic.conflictsOf(st, table, 1, 1, 2, type = 2).isEmpty())   // 双周 vs 单周
+        assertEquals(1, CourseLogic.conflictsOf(st, table, 1, 1, 2, type = 1).size)   // 单周 vs 单周
+        assertEquals(1, CourseLogic.conflictsOf(st, table, 1, 1, 2, type = 0).size)   // 每周 vs 单周
+    }
+
+    @Test
+    fun `周次范围完全不重叠时不算冲突`() {
+        val st = state(details = listOf(courseA().copy(startWeek = 1, endWeek = 4)))
+        assertTrue(
+            CourseLogic.conflictsOf(st, table, 1, 1, 2, startWeek = 5, endWeek = 16).isEmpty()
+        )
+        assertEquals(
+            1,
+            CourseLogic.conflictsOf(st, table, 1, 1, 2, startWeek = 4, endWeek = 16).size
+        )
+    }
+
+    @Test
+    fun `编辑自己时排除自身 不会自己和自己冲突`() {
+        val st = state()
+        assertTrue(CourseLogic.conflictsOf(st, table, 1, 1, 2, ignoreDetailId = 1L).isEmpty())
+    }
+
+    @Test
+    fun `冲突不会跨课表`() {
+        val otherTable = courseA().copy(id = 9, tableId = 99)
+        val st = state(details = listOf(otherTable))
+        assertTrue(CourseLogic.conflictsOf(st, table, 1, 1, 2).isEmpty())
+    }
 }

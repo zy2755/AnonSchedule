@@ -28,6 +28,7 @@ import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.Button
 import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.ExperimentalMaterial3Api
+import androidx.compose.material3.FilterChip
 import androidx.compose.material3.HorizontalDivider
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
@@ -347,22 +348,48 @@ private fun SemesterTabs(
     }
 }
 
-/** 汇总卡：加权平均分 / 总学分 / 平均绩点（只算有效项，无有效项显示「—」） */
+/** 汇总卡：平均分 / 总学分 / 平均绩点（只算有效项，无有效项显示「—」），口径可切换 */
 @Composable
 private fun GradeSummary(grades: List<GradeBean>) {
+    val state by Repo.state.collectAsState()
+    val arithmetic = state.settings.gpaArithmetic
     val totalCredit = grades.sumOf { it.credit }
-    val numCredit = grades.filter { it.scoreNum != null }.sumOf { it.credit }
-    val weighted = if (numCredit > 0)
-        grades.sumOf { (it.scoreNum ?: 0.0) * it.credit } / numCredit else null
-    val gpCredit = grades.filter { it.gradePoint != null }.sumOf { it.credit }
-    val gpa = if (gpCredit > 0)
-        grades.sumOf { (it.gradePoint ?: 0.0) * it.credit } / gpCredit else null
+
+    // 算术平均：每门课权重相同；学分加权：按学分算权重。两种口径都只统计有分数的课
+    val scored = grades.filter { it.scoreNum != null }
+    val scoreDenom = if (arithmetic) scored.size.toDouble() else scored.sumOf { it.credit }
+    val avg = if (scoreDenom > 0)
+        scored.sumOf { (it.scoreNum ?: 0.0) * (if (arithmetic) 1.0 else it.credit) } / scoreDenom else null
+
+    val pointed = grades.filter { it.gradePoint != null }
+    val pointDenom = if (arithmetic) pointed.size.toDouble() else pointed.sumOf { it.credit }
+    val gpa = if (pointDenom > 0)
+        pointed.sumOf { (it.gradePoint ?: 0.0) * (if (arithmetic) 1.0 else it.credit) } / pointDenom else null
 
     GlassCard(Modifier.fillMaxWidth()) {
         Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween) {
-            SummaryItem("加权平均分", weighted)
+            SummaryItem(if (arithmetic) "算术平均分" else "加权平均分", avg)
             SummaryItem("总学分", totalCredit)
             SummaryItem("平均绩点", gpa)
+        }
+        Row(
+            Modifier
+                .fillMaxWidth()
+                .padding(top = 10.dp),
+            horizontalArrangement = Arrangement.Center,
+            verticalAlignment = Alignment.CenterVertically
+        ) {
+            FilterChip(
+                selected = !arithmetic,
+                onClick = { Repo.update { it.copy(settings = it.settings.copy(gpaArithmetic = false)) } },
+                label = { Text("学分加权", style = MaterialTheme.typography.bodySmall) }
+            )
+            Spacer(Modifier.width(8.dp))
+            FilterChip(
+                selected = arithmetic,
+                onClick = { Repo.update { it.copy(settings = it.settings.copy(gpaArithmetic = true)) } },
+                label = { Text("算术平均", style = MaterialTheme.typography.bodySmall) }
+            )
         }
     }
 }

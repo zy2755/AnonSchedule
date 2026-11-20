@@ -125,7 +125,9 @@ data class Settings(
     val backgroundPath: String? = null,  // 背景图
     // ---- 提醒 ----
     val reminderEnabled: Boolean = false,   // 上课前提醒
-    val reminderLeadMinutes: Int = 10       // 提前多少分钟提醒
+    val reminderLeadMinutes: Int = 10,      // 提前多少分钟提醒
+    // ---- 成绩 ----
+    val gpaArithmetic: Boolean = false      // 平均分/绩点口径：false=学分加权（默认） true=算术平均
 )
 
 @Serializable

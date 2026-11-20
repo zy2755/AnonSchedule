@@ -35,6 +35,22 @@ private data class UpdateEntry(val version: String, val days: List<UpdateDay>)
 /** 更新内容（新的在最上面；改动按版本归类，同一版本内再按日期分段） */
 private val updateEntries = listOf(
     UpdateEntry(
+        version = "1.2.0",
+        days = listOf(
+            UpdateDay(
+                date = "2026-11-20",
+                items = listOf(
+                    "分享课表新增「课表长图」：把当前周排成一张图片，可选带不带左侧节次时间列，直接发群或存进相册",
+                    "分享课表新增「日历文件（.ics）」：整学期按周展开导进系统日历，单双周、停课、调课都会如实转换，手机、手表、电脑都能看到",
+                    "日历里每条课程默认带上课前提醒，导入后系统日历会按你的提醒时间提示",
+                    "添加课程、改课或拖动调课时，如果目标时间已经有别的课，会先提示「时间冲突」，可以选保留或取消",
+                    "成绩页汇总卡支持切换口径：「学分加权」或「算术平均」，平均分和平均绩点会跟着重算",
+                    "版本：升级到 1.2.0"
+                )
+            )
+        )
+    ),
+    UpdateEntry(
         version = "1.1.1",
         days = listOf(
             UpdateDay(

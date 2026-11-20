@@ -4,6 +4,7 @@ import android.appwidget.AppWidgetManager
 import android.content.ComponentName
 import android.content.Context
 import android.content.Intent
+import android.graphics.Bitmap
 import android.widget.Toast
 import androidx.compose.animation.AnimatedVisibility
 import androidx.compose.animation.core.tween
@@ -118,8 +119,10 @@ import androidx.core.content.FileProvider
 import com.anon.schedule.SubPage
 import com.anon.schedule.data.AppState
 import com.anon.schedule.data.ChangeRecord
+import com.anon.schedule.data.CourseLogic
 import com.anon.schedule.data.CourseTodo
 import com.anon.schedule.data.DetailBean
+import com.anon.schedule.data.IcsExport
 import com.anon.schedule.data.Repo
 import com.anon.schedule.data.Settings
 import com.anon.schedule.data.ShownCourse
@@ -145,6 +148,7 @@ import com.anon.schedule.widget.TodayTomorrowWidget
 import com.anon.schedule.widget.TodayWideWidget
 import java.time.format.DateTimeFormatter
 import java.io.File
+import java.io.FileOutputStream
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.flow.collect
 import kotlinx.coroutines.flow.first
@@ -203,6 +207,8 @@ fun ScheduleScreen(
     }
     // 三击空白格加课：记录 周/星期/起始节次
     var addAt by remember { mutableStateOf<Triple<Int, Int, Int>?>(null) }
+    // 拖动落点已有课：先攒下这次移动，等用户确认「保留」再执行
+    var pendingMove by remember { mutableStateOf<MoveConflict?>(null) }
 
     val s = st.tableSettings()
     val maxWeek = s.maxWeek.coerceAtLeast(1)
@@ -308,7 +314,21 @@ fun ScheduleScreen(
                 st = st,
                 week = page + 1,
                 onClick = { detail = it },
-                onMoveCourse = { item, day, node -> quickMoveCourse(st, page + 1, item, day, node) },
+                onMoveCourse = { item, day, node ->
+                    val w = page + 1
+                    val d = item.detail
+                    // 有开学日期时只是"这一周调过去"，冲突只看这一周；否则是长期改课表，按课程原周次范围判断
+                    val weekly = Repo.dateOfWeekDay(st, w, d.day) != null
+                    val names = CourseLogic.conflictsOf(
+                        st = st, tableId = st.currentTableId, day = day, startNode = node, step = d.step,
+                        startWeek = if (weekly) w else d.startWeek,
+                        endWeek = if (weekly) w else d.endWeek,
+                        type = if (weekly) 0 else d.type,
+                        ignoreDetailId = d.id
+                    ).mapNotNull { c -> st.courses.firstOrNull { it.id == c.courseId }?.name }.distinct()
+                    if (names.isEmpty()) quickMoveCourse(st, w, item, day, node)
+                    else pendingMove = MoveConflict(item, w, day, node, names)
+                },
                 onAddAt = { day, node -> addAt = Triple(page + 1, day, node) }
             )
         }
@@ -364,6 +384,28 @@ fun ScheduleScreen(
         )
     }
 
+    pendingMove?.let { m ->
+        AlertDialog(
+            onDismissRequest = { pendingMove = null },
+            title = { Text("时间冲突") },
+            text = {
+                Text(
+                    "${dayLabel(m.day)}第 ${m.node} 节已经有「${m.names.joinToString("、")}」了，" +
+                        "还要把「${m.item.course.name}」调过去吗？"
+                )
+            },
+            confirmButton = {
+                TextButton(onClick = {
+                    pendingMove = null
+                    quickMoveCourse(Repo.state.value, m.week, m.item, m.day, m.node)
+                }) { Text("调过去") }
+            },
+            dismissButton = {
+                TextButton(onClick = { pendingMove = null }) { Text("取消") }
+            }
+        )
+    }
+
     if (showMore) {
         MoreSheet(
             onDismiss = { showMore = false },
@@ -411,6 +453,15 @@ fun ScheduleScreen(
         )
     }
 }
+
+/** 拖动落点已有课程：先让用户确认，再真正执行调课 */
+private class MoveConflict(
+    val item: ShownCourse,
+    val week: Int,
+    val day: Int,
+    val node: Int,
+    val names: List<String>
+)
 
 /** 长按拖动快速调课：有开学日期 → 记一条只影响该周的调课记录；否则直接调整课程的上课星期/节次 */
 private fun quickMoveCourse(st: AppState, week: Int, item: ShownCourse, targetDay: Int, targetNode: Int) {
@@ -465,6 +516,10 @@ private fun quickMoveCourse(st: AppState, week: Int, item: ShownCourse, targetDa
         }
     }
 }
+
+/** 1..7 → 周一..周日 */
+private fun dayLabel(day: Int): String =
+    listOf("周一", "周二", "周三", "周四", "周五", "周六", "周日").getOrElse(day - 1) { "" }
 
 /** 顶栏副标题：今天日期（如 10月19日 周一） */
 private fun todayDateText(): String {
@@ -1463,6 +1518,9 @@ fun MoreSheet(
     var editingWeek by remember { mutableStateOf(false) }
     var weekText by remember { mutableStateOf(s.currentWeek.toString()) }
     var showShareOptions by remember { mutableStateOf(false) }
+    // 课表长图：先问要不要带时间列，再决定存相册还是直接分享
+    var showImageOptions by remember { mutableStateOf(false) }
+    var imageWithTime by remember { mutableStateOf(true) }
     val dark = st.settings.themeMode == 2
 
     ModalBottomSheet(
@@ -1735,10 +1793,82 @@ fun MoreSheet(
                             onDismiss()
                         }
                     )
+                    ShareMethodRow(
+                        title = "课表长图",
+                        subtitle = "生成一张图片，直接发群或存进相册",
+                        onClick = {
+                            showShareOptions = false
+                            showImageOptions = true
+                        }
+                    )
+                    ShareMethodRow(
+                        title = "日历文件 (.ics)",
+                        subtitle = "整学期导入系统日历，手机、手表、电脑都能看到",
+                        onClick = {
+                            showShareOptions = false
+                            val ics = IcsExport.build(st, st.currentTableId)
+                            if (ics == null) {
+                                Toast.makeText(
+                                    ctx, "先在「课表设置」里填好开学日期，才能排进日历", Toast.LENGTH_LONG
+                                ).show()
+                            } else {
+                                shareIcs(ctx, st, ics)
+                                onDismiss()
+                            }
+                        }
+                    )
                 }
             },
             confirmButton = {
                 TextButton(onClick = { showShareOptions = false }) { Text("取消") }
+            }
+        )
+    }
+
+    if (showImageOptions) {
+        AlertDialog(
+            onDismissRequest = { showImageOptions = false },
+            title = { Text("课表长图") },
+            text = {
+                Column(Modifier.fillMaxWidth()) {
+                    Text(
+                        "第 ${s.currentWeek} 周 · ${st.tables.firstOrNull { it.id == st.currentTableId }?.name ?: "我的课表"}",
+                        style = MaterialTheme.typography.bodySmall,
+                        color = MaterialTheme.colorScheme.onSurfaceVariant
+                    )
+                    Spacer(Modifier.height(6.dp))
+                    Row(
+                        verticalAlignment = Alignment.CenterVertically,
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .clip(RoundedCornerShape(12.dp))
+                            .clickable { imageWithTime = !imageWithTime }
+                    ) {
+                        Checkbox(checked = imageWithTime, onCheckedChange = { imageWithTime = it })
+                        Text("包含左侧节次与时间列", style = MaterialTheme.typography.bodyMedium)
+                    }
+                }
+            },
+            confirmButton = {
+                TextButton(onClick = {
+                    val week = s.currentWeek
+                    showImageOptions = false
+                    val bmp = TimetableImage.render(st, week, st.currentTableId, imageWithTime)
+                    shareBitmap(ctx, bmp, imageFileName(st, week), "第 $week 周课表")
+                    onDismiss()
+                }) { Text("分享") }
+            },
+            dismissButton = {
+                TextButton(onClick = {
+                    val week = s.currentWeek
+                    showImageOptions = false
+                    val bmp = TimetableImage.render(st, week, st.currentTableId, imageWithTime)
+                    val ok = TimetableImage.saveToGallery(ctx, bmp, imageFileName(st, week))
+                    Toast.makeText(
+                        ctx, if (ok) "已保存到相册" else "保存失败，可以改用分享", Toast.LENGTH_SHORT
+                    ).show()
+                    if (ok) onDismiss()
+                }) { Text("存相册") }
             }
         )
     }
@@ -1929,18 +2059,48 @@ private fun shareTimetableFullCsv(ctx: Context, st: AppState) {
 
 /** 把 CSV 文本写到缓存目录并唤起系统分享面板 */
 private fun shareCsv(ctx: Context, fileName: String, content: String, subject: String) {
-    val dir = File(ctx.cacheDir, "share").apply { mkdirs() }
-    val file = File(dir, fileName)
-    file.writeText(content, Charsets.UTF_8)
+    val file = writeShareFile(ctx, fileName, content)
+    shareFile(ctx, file, "text/csv", subject, "分享课表 CSV")
+}
 
+/** 课表长图的文件名：表名_第N周（去掉文件系统不认的字符） */
+private fun imageFileName(st: AppState, week: Int): String {
+    val tableName = st.tables.firstOrNull { it.id == st.currentTableId }?.name ?: "我的课表"
+    return "${tableName.replace(Regex("[\\\\/:*?\"<>|]"), "_")}_第${week}周"
+}
+
+/** 分享课表长图：PNG 先落进缓存，再以 content:// 交给分享面板 */
+private fun shareBitmap(ctx: Context, bmp: Bitmap, fileName: String, subject: String) {
+    val dir = File(ctx.cacheDir, "share").apply { mkdirs() }
+    val file = File(dir, "$fileName.png")
+    FileOutputStream(file).use { bmp.compress(Bitmap.CompressFormat.PNG, 100, it) }
+    shareFile(ctx, file, "image/png", subject, "分享课表图片")
+}
+
+/** 分享整学期日历：.ics 交给系统日历 App 或聊天工具 */
+private fun shareIcs(ctx: Context, st: AppState, content: String) {
+    val tableName = st.tables.firstOrNull { it.id == st.currentTableId }?.name ?: "我的课表"
+    val safeName = tableName.replace(Regex("[\\\\/:*?\"<>|]"), "_")
+    val file = writeShareFile(ctx, "$safeName.ics", content)
+    shareFile(ctx, file, "text/calendar", "$tableName 课表", "导入或分享日历文件")
+}
+
+/** 把文本内容写进缓存目录的 share/ 下 */
+private fun writeShareFile(ctx: Context, fileName: String, content: String): File {
+    val dir = File(ctx.cacheDir, "share").apply { mkdirs() }
+    return File(dir, fileName).apply { writeText(content, Charsets.UTF_8) }
+}
+
+/** 统一的分享出口：缓存文件 → FileProvider → 系统分享面板 */
+private fun shareFile(ctx: Context, file: File, mime: String, subject: String, chooser: String) {
     val uri = FileProvider.getUriForFile(ctx, "${ctx.packageName}.fileprovider", file)
     val intent = Intent(Intent.ACTION_SEND).apply {
-        type = "text/csv"
+        type = mime
         putExtra(Intent.EXTRA_STREAM, uri)
         putExtra(Intent.EXTRA_SUBJECT, subject)
         addFlags(Intent.FLAG_GRANT_READ_URI_PERMISSION)
     }
-    ctx.startActivity(Intent.createChooser(intent, "分享课表 CSV"))
+    ctx.startActivity(Intent.createChooser(intent, chooser))
 }
 
 /**

@@ -152,6 +152,54 @@ object CourseLogic {
     private fun courseOf(st: AppState, detail: DetailBean): CourseBean? =
         st.courses.firstOrNull { it.id == detail.courseId }
 
+    // ---------- 冲突检测 ----------
+
+    /**
+     * 候选安排在学期内会撞上的课：同一天、节次区间有交集、而且两边至少有一周同时生效。
+     *
+     * 只比较正式课表（[DetailBean]），临时加课 / 调课记录属于"用户明知故犯"的操作，不在这里拦。
+     *
+     * @param ignoreDetailId 编辑或拖动时传入自己的 id，免得提示"和自己冲突"
+     */
+    fun conflictsOf(
+        st: AppState,
+        tableId: Long,
+        day: Int,
+        startNode: Int,
+        step: Int,
+        startWeek: Int = 1,
+        endWeek: Int = Int.MAX_VALUE,
+        type: Int = 0,
+        ignoreDetailId: Long? = null
+    ): List<DetailBean> {
+        if (startNode < 1 || day !in 1..7) return emptyList()
+        val cand = startNode until (startNode + step.coerceAtLeast(1))
+        return st.details.filter { d ->
+            d.tableId == tableId &&
+                d.id != ignoreDetailId &&
+                d.day == day &&
+                d.startNode >= 1 &&
+                (d.startNode until d.startNode + d.step.coerceAtLeast(1)).any { it in cand } &&
+                weeksOverlap(d.startWeek, d.endWeek, d.type, startWeek, endWeek, type)
+        }
+    }
+
+    /** 两段周次里是否存在同一周、且单双周都能生效的那一周 */
+    private fun weeksOverlap(
+        aStart: Int, aEnd: Int, aType: Int,
+        bStart: Int, bEnd: Int, bType: Int
+    ): Boolean {
+        // 单周 vs 双周永远不会撞在一起
+        if (aType != 0 && bType != 0 && aType != bType) return false
+        val from = maxOf(aStart, bStart, 1)
+        val to = minOf(aEnd, bEnd)
+        if (from > to) return false
+        val parity = if (aType != 0) aType else bType
+        if (parity == 0) return true
+        for (w in from..to) if (parityMatches(parity, w)) return true
+        return false
+    }
+
     // ---------- 今日视图 ----------
 
     /** 一节课在时间轴上的阶段 */

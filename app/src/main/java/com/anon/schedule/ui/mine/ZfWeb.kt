@@ -7,8 +7,13 @@ import android.webkit.CookieManager
 import android.webkit.WebSettings
 import android.webkit.WebView
 import com.anon.schedule.data.SecurePrefs
+import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.withContext
 import org.json.JSONObject
+import org.json.JSONTokener
 import java.io.File
+import java.net.HttpURLConnection
+import java.net.URL
 
 /**
  * 正方教务的 WebView 统一配置。
@@ -110,6 +115,8 @@ ul.treeview .title i.zt3{position:absolute!important;right:7px!important;top:9px
 .more_con table tr:nth-child(even)>td{background:#fafbfd!important}
 .more_con table td{border-bottom:1px solid #f1f3f8!important}
 .more_con a{color:#4a6fd4!important;text-decoration:none!important}
+/* 快照页自己补的展开：点卡片加上 anon-open 就把明细表放出来 */
+ul.treeview li.anon-open>.more_con{display:block!important}
 
 /* ---- 深色主题 ---- */
 /* 页面本身是正方给的浅色稿，深色下靠这套覆盖改成和 App 一致的暗色卡片 */
@@ -206,6 +213,96 @@ private val ZF_RESTYLE_JS = """
 internal const val ZF_BG_LIGHT = 0xFFEEF1F6.toInt()
 internal const val ZF_BG_DARK = 0xFF101215.toInt()
 
+/**
+ * 快照页补的交互：点标题卡或「更多」展开/收起下面的课程明细表。
+ *
+ * 快照是剥过脚本的 DOM，原站自己那套展开逻辑已经没了，只能自己绑一份；
+ * 原始 HTML 页面脚本还在，不注入这段，否则两边各切一次等于没切。
+ */
+private const val ZF_SNAP_JS = """
+<script id="anon-more-js">
+(function(){
+  if(window.__anonMoreBound) return;
+  window.__anonMoreBound=true;
+  document.addEventListener('click',function(e){
+    var el=e.target;
+    if(!el||!el.closest) return;
+    var li=el.closest('li');
+    if(!li) return;
+    if(!el.closest('.more')&&!el.closest('.title')) return;
+    var box=li.querySelector('.more_con');
+    if(!box){
+      var nx=li.nextElementSibling;
+      if(nx&&(' '+nx.className+' ').indexOf(' more_con ')>=0) box=nx;
+    }
+    if(!box) return;
+    /* 用 class + !important 控制显隐：原站明细表的 display:none 可能带 !important，
+       直接改内联样式压不住 */
+    li.classList.toggle('anon-open');
+    e.preventDefault();
+  },true);
+})();
+</script>
+"""
+
+private val HTML_TAG = Regex("<html\\b([^>]*)>", RegexOption.IGNORE_CASE)
+private val CLASS_ATTR = Regex("class=\"([^\"]*)\"", RegexOption.IGNORE_CASE)
+
+/**
+ * 把重排版样式和深色 class 直接拼进 HTML 源码。
+ *
+ * 页面一渲染就是我们的排版，不用等 onPageFinished 再注入，少闪一下原始样式；
+ * 深色主题下连 `html.anon-dark` 一起带上，否则缓存页第一帧会是浅色的。
+ */
+internal fun zfWithStyle(html: String, dark: Boolean, snapshot: Boolean = false): String {
+    var out = html
+    val m = HTML_TAG.find(out)
+    if (m != null) {
+        var attrs = m.groupValues[1]
+        if (dark && !attrs.contains("anon-dark")) {
+            val c = CLASS_ATTR.find(attrs)
+            attrs = if (c != null) {
+                val merged = "${c.groupValues[1]} anon-dark".trim()
+                attrs.replaceRange(c.range, "class=\"$merged\"")
+            } else {
+                "$attrs class=\"anon-dark\""
+            }
+        }
+        // 打个标记，让重排脚本知道这版是剥过脚本的快照
+        if (snapshot && !attrs.contains("data-anon-snap")) attrs += " data-anon-snap=\"1\""
+        out = out.substring(0, m.range.first) + "<html$attrs>" + out.substring(m.range.last + 1)
+    }
+    if (!out.contains("anon-zf-style")) {
+        val style = "<style id=\"anon-zf-style\">$ZF_CSS</style>"
+        val idx = out.indexOf("</head>", ignoreCase = true)
+        out = if (idx >= 0) out.substring(0, idx) + style + out.substring(idx) else style + out
+    }
+    // 快照没有脚本，原站的「更多」展开得自己补回来
+    if (snapshot && !out.contains("anon-more-js")) {
+        val b = out.lastIndexOf("</body>", ignoreCase = true)
+        out = if (b >= 0) out.substring(0, b) + ZF_SNAP_JS + out.substring(b) else out + ZF_SNAP_JS
+    }
+    return out
+}
+
+/**
+ * 直接向教务要服务器的原始 HTML。
+ *
+ * WebView 只能拿到执行完脚本的 DOM，把 DOM 再喂回去会让页面脚本二次执行，
+ * 「并且 / 或者」这类由脚本插入的节点会重复出现，所以缓存必须存原始 HTML。
+ */
+internal suspend fun zfFetchHtml(context: Context, url: String, cookie: String): String? =
+    withContext(Dispatchers.IO) {
+        runCatching {
+            val conn = URL(url).openConnection() as HttpURLConnection
+            conn.connectTimeout = 15000
+            conn.readTimeout = 20000
+            conn.setRequestProperty("User-Agent", WebSettings.getDefaultUserAgent(context) + ZF_UA_SUFFIX)
+            if (cookie.isNotEmpty()) conn.setRequestProperty("Cookie", cookie)
+            conn.inputStream.bufferedReader(Charsets.UTF_8).use { it.readText() }
+        }.getOrNull()
+    }
+
 /** 给已经加载完的教务页面套上重排版；深色下同时切到暗色卡片 */
 internal fun applyZfRestyle(view: WebView, dark: Boolean) {
     view.evaluateJavascript(
@@ -225,11 +322,18 @@ internal fun isZfLoginUrl(url: String?): Boolean =
 
 /** 缓存的学业页 HTML：冷启动时先拿它顶上去，不用先看一屏登录页 */
 internal object ZfCache {
+    /** 服务器原始 HTML：在线刷新时用来显示（脚本正常执行，树可以折叠） */
     private const val NAME = "zf_academic.html"
+
+    /** 渲染之后的 DOM 快照：离线/首帧用，剥掉脚本再加载，内容完整且不会重复 */
+    private const val VIEW = "zf_academic_view.html"
 
     fun read(context: Context): String? = runCatching {
         val f = File(context.filesDir, NAME)
-        if (f.exists() && f.length() > 0) f.readText(Charsets.UTF_8) else null
+        if (!f.exists() || f.length() == 0L) return@runCatching null
+        val html = f.readText(Charsets.UTF_8)
+        // 早期版本缓存的是「执行完脚本的 DOM」，重新加载会让页面脚本再跑一遍、内容重复，直接作废
+        if (html.contains("anon-zf-style")) null else html
     }.getOrNull()
 
     fun write(context: Context, html: String) = runCatching {
@@ -237,10 +341,79 @@ internal object ZfCache {
         File(context.filesDir, NAME).writeText(html, Charsets.UTF_8)
     }
 
+    /** 渲染后的 DOM 快照：整棵课程树都在里面，断网也能完整显示 */
+    fun readView(context: Context): String? = runCatching {
+        val f = File(context.filesDir, VIEW)
+        if (!f.exists() || f.length() == 0L) null else f.readText(Charsets.UTF_8)
+    }.getOrNull()
+
+    fun writeView(context: Context, html: String) = runCatching {
+        if (html.length < 512) return@runCatching
+        File(context.filesDir, VIEW).writeText(html, Charsets.UTF_8)
+    }
+
     fun clear(context: Context) {
         runCatching { File(context.filesDir, NAME).delete() }
+        runCatching { File(context.filesDir, VIEW).delete() }
     }
 }
+
+private val SCRIPT_TAG = Regex("<script\\b[^>]*>[\\s\\S]*?</script>", RegexOption.IGNORE_CASE)
+
+/**
+ * 准备一份「只用于显示」的快照。
+ *
+ * 快照里的 DOM 是脚本跑完之后的样子，直接加载会让原站脚本再初始化一次
+ * （「并且 / 或者」「共 N 门」会翻倍），所以把 `<script>` 全部剥掉：
+ * 树已经画在 DOM 里了，静态看没问题，只是不能折叠。
+ */
+internal fun zfSnapshotForView(html: String): String = SCRIPT_TAG.replace(html, "")
+
+/** evaluateJavascript 的返回值是 JSON 字面量，解一层才能当 HTML 用 */
+internal fun zfDecodeJsString(raw: String?): String? {
+    if (raw.isNullOrEmpty() || raw == "null") return null
+    return runCatching { JSONTokener(raw).nextValue() as? String }.getOrNull()
+}
+
+/** 课程树节点数：用来判断树是不是还在追加 */
+internal const val ZF_TREE_COUNT_JS =
+    "(function(){return document.querySelectorAll('ul.treeview li').length;})()"
+
+/**
+ * 取一份「渲染结果」：树节点数、文字签名、整页 DOM。
+ *
+ * 节点数用来判断树是不是画完了（树是脚本异步画的，「加载完」不等于树出来了）；
+ * 签名去掉每次请求都会变的「统计时间 … 之前」，用来判断内容到底变没变——
+ * 没变就别重载页面，否则整页会白闪一下。
+ *
+ * 签名只取 `#alertBox` 和课程树的 `innerText`：
+ * - 用 `innerText` 而不是 `textContent`，是因为树里夹着内联 `<script>`，
+ *   而主页面显示的是剥过脚本的快照，`textContent` 会把脚本文本也算进去，两边对不上；
+ * - 只取这两块，是因为主页面注入的样式会把 `#show-head` 之类隐藏掉，
+ *   整页 `innerText` 两侧宽度不一样；
+ * - 去掉「学分:」，是因为 [ZF_RESTYLE_JS] 会把「要求学分:36.0」压成「要求36.0」，
+ *   主页面已经是压过的样子，不归一化两边永远对不上。
+ */
+internal val ZF_RENDERED_JS = """
+(function(){
+  try{
+    var n=document.querySelectorAll('ul.treeview li').length;
+    var a=document.getElementById('alertBox'),t=document.querySelector('ul.treeview');
+    var sig=((a?a.innerText:'')+'|'+(t?t.innerText:'')).replace(/\s+/g,'').replace(/统计时间[\s\S]{0,32}?之前/,'').replace(/学分[:：]/g,'');
+    return JSON.stringify({n:n,sig:sig,html:document.documentElement.outerHTML});
+  }catch(e){ return '{}'; }
+})();
+"""
+
+/** 只取文字签名：跟当前显示的内容比一比，决定要不要重载 */
+internal val ZF_SIG_JS = """
+(function(){
+  try{
+    var a=document.getElementById('alertBox'),t=document.querySelector('ul.treeview');
+    return ((a?a.innerText:'')+'|'+(t?t.innerText:'')).replace(/\s+/g,'').replace(/统计时间[\s\S]{0,32}?之前/,'').replace(/学分[:：]/g,'');
+  }catch(e){ return ''; }
+})();
+"""
 
 /**
  * 教务账号密码（加密存本机，只用于自动登录）。

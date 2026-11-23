@@ -276,6 +276,92 @@ object CourseLogic {
         return TodayOverview(state = if (items.isEmpty()) TodayState.EMPTY else TodayState.DONE)
     }
 
+    // ---------- 学期统计 ----------
+
+    /** 本周概览：本周课时、最忙的一天与学期累计 */
+    data class WeekStats(
+        val week: Int,
+        val maxWeek: Int,
+        val courseCount: Int,       // 本周上课次数（卡片数）
+        val nodeCount: Int,         // 本周节数（按每张卡占的节次累加）
+        val busiestDays: List<Int>, // 节数最多的日子 1=周一 ... 7=周日；并列时会有多个，全周没课为空
+        val busiestDayNodes: Int,   // 最忙那几天的节数
+        val termNodes: Int          // 从第 1 周累计到本周的总节数
+    )
+
+    /**
+     * 算 [week] 这一周的课时与学期累计。
+     *
+     * 统计口径与网格一致：调课 / 停课 / 加课都已叠加，只算本周真正要上的课。
+     * 未设置开学日期时退化成「按星期 + 周次」的静态统计（与课表长图一致）。
+     */
+    fun weekStats(
+        st: AppState,
+        week: Int,
+        tableId: Long,
+        startDate: LocalDate?,
+        maxWeek: Int
+    ): WeekStats {
+        val safeMax = maxWeek.coerceAtLeast(1)
+        val current = week.coerceIn(1, safeMax)
+
+        var courseCount = 0
+        var nodeCount = 0
+        var busiestDays = emptyList<Int>()
+        var busiestNodes = 0
+        for (day in 1..7) {
+            val items = weekDayItems(st, current, tableId, startDate, day)
+            val nodes = items.sumOf { it.detail.step.coerceAtLeast(1) }
+            courseCount += items.size
+            nodeCount += nodes
+            // 并列时全部记下来：周一到周五一样忙的话，不能只显示周一
+            when {
+                nodes > busiestNodes -> {
+                    busiestNodes = nodes
+                    busiestDays = listOf(day)
+                }
+                nodes == busiestNodes && nodes > 0 -> busiestDays = busiestDays + day
+            }
+        }
+
+        var termNodes = 0
+        for (w in 1..current) {
+            for (day in 1..7) {
+                termNodes += weekDayItems(st, w, tableId, startDate, day)
+                    .sumOf { it.detail.step.coerceAtLeast(1) }
+            }
+        }
+
+        return WeekStats(
+            week = current,
+            maxWeek = safeMax,
+            courseCount = courseCount,
+            nodeCount = nodeCount,
+            busiestDays = busiestDays,
+            busiestDayNodes = busiestNodes,
+            termNodes = termNodes
+        )
+    }
+
+    /** 统计口径下某一天的课：有开学日期时叠加临时变动，没有时按「星期 + 周次」静态筛 */
+    private fun weekDayItems(
+        st: AppState,
+        week: Int,
+        tableId: Long,
+        startDate: LocalDate?,
+        day: Int
+    ): List<ShownCourse> {
+        if (startDate != null) {
+            val date = dateOfWeekDay(startDate, week, day)
+            return displayDayCourses(st, date, week, tableId, startDate, showOtherWeek = false)
+        }
+        return st.details
+            .filter { it.tableId == tableId && it.day == day && validInWeek(it, week) }
+            .mapNotNull { d ->
+                st.courses.firstOrNull { it.id == d.courseId }?.let { ShownCourse(d, it, false, null) }
+            }
+    }
+
     private fun minutesCeil(from: LocalTime, to: LocalTime): Int =
         ((Duration.between(from, to).seconds + 59) / 60).toInt().coerceAtLeast(1)
 

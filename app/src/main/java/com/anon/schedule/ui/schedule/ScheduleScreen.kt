@@ -1521,6 +1521,8 @@ fun MoreSheet(
     // 课表长图：先问要不要带时间列，再决定存相册还是直接分享
     var showImageOptions by remember { mutableStateOf(false) }
     var imageWithTime by remember { mutableStateOf(true) }
+    // 长图样式：竖向 / 横向 / 深色 / 极简
+    var imageStyle by remember { mutableStateOf(TimetableImage.Style.VERTICAL) }
     val dark = st.settings.themeMode == 2
 
     ModalBottomSheet(
@@ -1701,6 +1703,14 @@ fun MoreSheet(
                 )
                 ThinDivider()
                 GroupRow(
+                    icon = Icons.Default.CalendarMonth,
+                    tileColor = TileGreen,
+                    title = "月历视图",
+                    subtitle = "整月看课表，点某天看当天安排",
+                    onClick = { onOpenSub(SubPage.MonthCalendar) }
+                )
+                ThinDivider()
+                GroupRow(
                     icon = Icons.Default.Share,
                     tileColor = TileCyan,
                     title = "分享课表",
@@ -1836,16 +1846,44 @@ fun MoreSheet(
                         style = MaterialTheme.typography.bodySmall,
                         color = MaterialTheme.colorScheme.onSurfaceVariant
                     )
-                    Spacer(Modifier.height(6.dp))
+                    Spacer(Modifier.height(10.dp))
                     Row(
-                        verticalAlignment = Alignment.CenterVertically,
-                        modifier = Modifier
+                        Modifier
                             .fillMaxWidth()
-                            .clip(RoundedCornerShape(12.dp))
-                            .clickable { imageWithTime = !imageWithTime }
+                            .horizontalScroll(rememberScrollState()),
+                        horizontalArrangement = Arrangement.spacedBy(6.dp)
                     ) {
-                        Checkbox(checked = imageWithTime, onCheckedChange = { imageWithTime = it })
-                        Text("包含左侧节次与时间列", style = MaterialTheme.typography.bodyMedium)
+                        TimetableImage.Style.entries.forEach { style ->
+                            FilterChip(
+                                selected = imageStyle == style,
+                                onClick = { imageStyle = style },
+                                label = { Text(style.label) }
+                            )
+                        }
+                    }
+                    Spacer(Modifier.height(4.dp))
+                    Text(
+                        when (imageStyle) {
+                            TimetableImage.Style.VERTICAL -> "经典网格：星期为列，节次从上往下排"
+                            TimetableImage.Style.HORIZONTAL -> "横向排版：一个星期一行，节次从左往右排"
+                            TimetableImage.Style.DARK -> "深色底：夜里看着舒服，发出去也更耐看"
+                            TimetableImage.Style.MINIMAL -> "极简：去掉网格线，只留淡色块和左侧色条"
+                        },
+                        style = MaterialTheme.typography.bodySmall,
+                        color = MaterialTheme.colorScheme.onSurfaceVariant
+                    )
+                    if (imageStyle != TimetableImage.Style.HORIZONTAL) {
+                        Spacer(Modifier.height(6.dp))
+                        Row(
+                            verticalAlignment = Alignment.CenterVertically,
+                            modifier = Modifier
+                                .fillMaxWidth()
+                                .clip(RoundedCornerShape(12.dp))
+                                .clickable { imageWithTime = !imageWithTime }
+                        ) {
+                            Checkbox(checked = imageWithTime, onCheckedChange = { imageWithTime = it })
+                            Text("包含左侧节次与时间列", style = MaterialTheme.typography.bodyMedium)
+                        }
                     }
                 }
             },
@@ -1853,7 +1891,7 @@ fun MoreSheet(
                 TextButton(onClick = {
                     val week = s.currentWeek
                     showImageOptions = false
-                    val bmp = TimetableImage.render(st, week, st.currentTableId, imageWithTime)
+                    val bmp = TimetableImage.render(st, week, st.currentTableId, imageWithTime, imageStyle)
                     shareBitmap(ctx, bmp, imageFileName(st, week), "第 $week 周课表")
                     onDismiss()
                 }) { Text("分享") }
@@ -1862,7 +1900,7 @@ fun MoreSheet(
                 TextButton(onClick = {
                     val week = s.currentWeek
                     showImageOptions = false
-                    val bmp = TimetableImage.render(st, week, st.currentTableId, imageWithTime)
+                    val bmp = TimetableImage.render(st, week, st.currentTableId, imageWithTime, imageStyle)
                     val ok = TimetableImage.saveToGallery(ctx, bmp, imageFileName(st, week))
                     Toast.makeText(
                         ctx, if (ok) "已保存到相册" else "保存失败，可以改用分享", Toast.LENGTH_SHORT

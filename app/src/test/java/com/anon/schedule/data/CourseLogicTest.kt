@@ -305,4 +305,75 @@ class CourseLogicTest {
         val st = state(details = listOf(otherTable))
         assertTrue(CourseLogic.conflictsOf(st, table, 1, 1, 2).isEmpty())
     }
+
+    // ---------- 学期统计 ----------
+
+    @Test
+    fun `本周统计给出课时数 最忙的一天与学期累计`() {
+        val st = state()   // 周一：高数 1-2 节、英语 3-4 节
+        val week1 = CourseLogic.weekStats(st, 1, table, start, maxWeek = 16)
+        assertEquals(2, week1.courseCount)
+        assertEquals(4, week1.nodeCount)
+        assertEquals(listOf(1), week1.busiestDays)
+        assertEquals(4, week1.busiestDayNodes)
+        assertEquals(4, week1.termNodes)
+
+        // 第二周结束时累计翻倍
+        assertEquals(8, CourseLogic.weekStats(st, 2, table, start, 16).termNodes)
+    }
+
+    @Test
+    fun `统计只算本周真正生效的课`() {
+        val odd = DetailBean(
+            id = 5, courseId = 1, day = 2, startNode = 1, step = 1,
+            startWeek = 1, endWeek = 16, type = 1, tableId = table
+        )
+        val st = state(details = listOf(courseA(), courseB(), odd))
+
+        // 第一周是单周，周二那节算进来；第二周是双周，不算
+        assertEquals(5, CourseLogic.weekStats(st, 1, table, start, 16).nodeCount)
+        assertEquals(4, CourseLogic.weekStats(st, 2, table, start, 16).nodeCount)
+    }
+
+    @Test
+    fun `停课会从统计里扣掉 全周没课时最忙的一天为空`() {
+        val st = state(
+            records = listOf(
+                ChangeRecord(id = 1, type = 2, fromDate = start.toEpochDay(), name = "")
+            )
+        )
+        val stats = CourseLogic.weekStats(st, 1, table, start, 16)
+        assertEquals(0, stats.nodeCount)
+        assertTrue(stats.busiestDays.isEmpty())
+        // 第二周没被停课，累计只算第二周
+        assertEquals(4, CourseLogic.weekStats(st, 2, table, start, 16).termNodes)
+    }
+
+    @Test
+    fun `没设置开学日期时按静态周次统计`() {
+        val st = state().copy(settings = Settings(startDate = null))
+        val stats = CourseLogic.weekStats(st, 2, table, null, 16)
+        assertEquals(4, stats.nodeCount)
+        assertEquals(8, stats.termNodes)
+        assertEquals(listOf(1), stats.busiestDays)
+    }
+
+    @Test
+    fun `周一到周五一样忙时全部并列 不会只留下周一`() {
+        val details = (1..5).map { day ->
+            DetailBean(
+                id = day.toLong(), courseId = 1, day = day, startNode = 1, step = 2,
+                startWeek = 1, endWeek = 16, type = 0, tableId = table
+            )
+        }
+        val st = state(details = details)
+        val stats = CourseLogic.weekStats(st, 1, table, start, 16)
+        assertEquals(listOf(1, 2, 3, 4, 5), stats.busiestDays)
+        assertEquals(2, stats.busiestDayNodes)
+    }
+
+    @Test
+    fun `周次超出总周数时按最后一周统计`() {
+        assertEquals(16, CourseLogic.weekStats(state(), 99, table, start, 16).week)
+    }
 }

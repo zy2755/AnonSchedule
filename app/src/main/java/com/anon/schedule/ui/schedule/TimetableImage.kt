@@ -45,9 +45,31 @@ object TimetableImage {
     private val dayNames = listOf("周一", "周二", "周三", "周四", "周五", "周六", "周日")
     private val dateFmt = DateTimeFormatter.ofPattern("M.d")
 
-    private val textMain = 0xFF1A1A1A.toInt()
-    private val textSub = 0xFF8A8F99.toInt()
-    private val lineColor = 0xFFE8EAEE.toInt()
+    /** 长图样式：竖向 / 横向是排版，深色 / 极简是配色与留白 */
+    enum class Style(val label: String) {
+        VERTICAL("竖向"),
+        HORIZONTAL("横向"),
+        DARK("深色"),
+        MINIMAL("极简")
+    }
+
+    /** 一套样式对应的底色、主副文字与网格线颜色 */
+    private class Palette(val bg: Int, val main: Int, val sub: Int, val line: Int)
+
+    private fun paletteOf(style: Style): Palette = when (style) {
+        Style.DARK -> Palette(
+            bg = 0xFF14161B.toInt(),
+            main = 0xFFF2F4F8.toInt(),
+            sub = 0xFF98A0AC.toInt(),
+            line = 0xFF2A2E37.toInt()
+        )
+        else -> Palette(
+            bg = 0xFFFFFFFF.toInt(),
+            main = 0xFF1A1A1A.toInt(),
+            sub = 0xFF8A8F99.toInt(),
+            line = 0xFFE8EAEE.toInt()
+        )
+    }
 
     /** 按设置里选中的星期范围排（与周视图一致） */
     private fun visibleDays(s: Settings): List<Int> {
@@ -62,10 +84,19 @@ object TimetableImage {
     /**
      * 画一张第 [week] 周的课表图。
      *
-     * @param showTimeColumn 是否带左侧的节次 / 时间列
+     * @param showTimeColumn 是否带左侧的节次 / 时间列（横向排版不需要）
+     * @param style          长图样式，默认竖向
      */
-    fun render(st: AppState, week: Int, tableId: Long, showTimeColumn: Boolean): Bitmap {
+    fun render(
+        st: AppState,
+        week: Int,
+        tableId: Long,
+        showTimeColumn: Boolean,
+        style: Style = Style.VERTICAL
+    ): Bitmap {
+        if (style == Style.HORIZONTAL) return renderHorizontal(st, week, tableId, style)
         val s = st.tableSettings(tableId)
+        val pal = paletteOf(style)
         val start = s.startDate?.let { LocalDate.ofEpochDay(it) }
         val days = visibleDays(s)
         val rows = s.nodeCount.coerceAtLeast(1)
@@ -79,7 +110,7 @@ object TimetableImage {
         val c = Canvas(bmp)
         c.scale(SCALE, SCALE)   // 之后全部按 dp 画
 
-        val bg = Paint(Paint.ANTI_ALIAS_FLAG).apply { color = 0xFFFFFFFF.toInt() }
+        val bg = Paint(Paint.ANTI_ALIAS_FLAG).apply { color = pal.bg }
         c.drawRect(0f, 0f, widthDp, heightDp, bg)
 
         val left = PAD + (if (showTimeColumn) TIME_W else 0f)
@@ -89,11 +120,11 @@ object TimetableImage {
         // ---------- 标题 ----------
         val tableName = st.tables.firstOrNull { it.id == tableId }?.name ?: "我的课表"
         val title = Paint(Paint.ANTI_ALIAS_FLAG).apply {
-            color = textMain; textSize = 19f; typeface = Typeface.create(Typeface.DEFAULT, Typeface.BOLD)
+            color = pal.main; textSize = 19f; typeface = Typeface.create(Typeface.DEFAULT, Typeface.BOLD)
         }
         c.drawText("$tableName · 第 $week 周", PAD, PAD + 22f, title)
 
-        val meta = Paint(Paint.ANTI_ALIAS_FLAG).apply { color = textSub; textSize = 10.5f }
+        val meta = Paint(Paint.ANTI_ALIAS_FLAG).apply { color = pal.sub; textSize = 10.5f }
         val first = start?.let { CourseLogic.dateOfWeekDay(it, week, 1) }
         val last = start?.let { CourseLogic.dateOfWeekDay(it, week, 7) }
         val rangeText = if (first != null && last != null) "${first.format(dateFmt)} - ${last.format(dateFmt)}　" else ""
@@ -105,11 +136,11 @@ object TimetableImage {
 
         // ---------- 表头 ----------
         val headBold = Paint(Paint.ANTI_ALIAS_FLAG).apply {
-            color = textMain; textSize = 11.5f; typeface = Typeface.create(Typeface.DEFAULT, Typeface.BOLD)
+            color = pal.main; textSize = 11.5f; typeface = Typeface.create(Typeface.DEFAULT, Typeface.BOLD)
             textAlign = Paint.Align.CENTER
         }
         val headSub = Paint(Paint.ANTI_ALIAS_FLAG).apply {
-            color = textSub; textSize = 9f; textAlign = Paint.Align.CENTER
+            color = pal.sub; textSize = 9f; textAlign = Paint.Align.CENTER
         }
         if (showTimeColumn) {
             c.drawText("节次", PAD + TIME_W / 2, PAD + TITLE_H + 18f, headSub)
@@ -124,28 +155,31 @@ object TimetableImage {
         }
 
         // ---------- 网格 ----------
-        val line = Paint(Paint.ANTI_ALIAS_FLAG).apply {
-            color = lineColor; strokeWidth = 0.8f
+        // 极简样式不画网格线，只靠留白和课程卡分区
+        if (style != Style.MINIMAL) {
+            val line = Paint(Paint.ANTI_ALIAS_FLAG).apply {
+                color = pal.line; strokeWidth = 0.8f
+            }
+            for (r in 0..rows) {
+                val y = gridTop + rowH * r
+                c.drawLine(PAD, y, PAD + (if (showTimeColumn) TIME_W else 0f) + gridW, y, line)
+            }
+            val vTop = PAD + TITLE_H + HEAD_H - 4f
+            for (i in 0..days.size) {
+                val x = left + DAY_W * i
+                c.drawLine(x, vTop, x, gridTop + rowH * rows, line)
+            }
+            if (showTimeColumn) c.drawLine(PAD, vTop, PAD, gridTop + rowH * rows, line)
         }
-        for (r in 0..rows) {
-            val y = gridTop + rowH * r
-            c.drawLine(PAD, y, PAD + (if (showTimeColumn) TIME_W else 0f) + gridW, y, line)
-        }
-        val vTop = PAD + TITLE_H + HEAD_H - 4f
-        for (i in 0..days.size) {
-            val x = left + DAY_W * i
-            c.drawLine(x, vTop, x, gridTop + rowH * rows, line)
-        }
-        if (showTimeColumn) c.drawLine(PAD, vTop, PAD, gridTop + rowH * rows, line)
 
         // ---------- 节次列 ----------
         if (showTimeColumn) {
             val nodeBold = Paint(Paint.ANTI_ALIAS_FLAG).apply {
-                color = textSub; textSize = 9.5f; typeface = Typeface.create(Typeface.DEFAULT, Typeface.BOLD)
+                color = pal.sub; textSize = 9.5f; typeface = Typeface.create(Typeface.DEFAULT, Typeface.BOLD)
                 textAlign = Paint.Align.CENTER
             }
             val nodeTime = Paint(Paint.ANTI_ALIAS_FLAG).apply {
-                color = textSub; textSize = 7.5f; textAlign = Paint.Align.CENTER
+                color = pal.sub; textSize = 7.5f; textAlign = Paint.Align.CENTER
             }
             for (r in 1..rows) {
                 val cy = gridTop + rowH * (r - 1) + rowH / 2
@@ -168,13 +202,13 @@ object TimetableImage {
                 val span = d.step.coerceAtMost(rows - d.startNode + 1).coerceAtLeast(1)
                 val top = gridTop + rowH * (d.startNode - 1) + 1.2f
                 val bottom = top + rowH * span - 2.4f
-                drawCourse(c, item, s, x + 1.2f, top, x + DAY_W - 1.2f, bottom)
+                drawCourse(c, item, s, x + 1.2f, top, x + DAY_W - 1.2f, bottom, style, pal)
             }
         }
 
         // ---------- 落款 ----------
         val foot = Paint(Paint.ANTI_ALIAS_FLAG).apply {
-            color = textSub; textSize = 8f; textAlign = Paint.Align.RIGHT
+            color = pal.sub; textSize = 8f; textAlign = Paint.Align.RIGHT
         }
         c.drawText(
             "由 AnonSchedule 生成 · ${LocalDate.now().format(dateFmt)}",
@@ -182,6 +216,167 @@ object TimetableImage {
         )
 
         return bmp
+    }
+
+    /**
+     * 横向排版：一个星期一一行、节次横向排开。
+     * 早上扫一眼「今天上什么」时不用左右找列，贴在桌面上更直观。
+     */
+    private fun renderHorizontal(st: AppState, week: Int, tableId: Long, style: Style): Bitmap {
+        val s = st.tableSettings(tableId)
+        val start = s.startDate?.let { LocalDate.ofEpochDay(it) }
+        val days = visibleDays(s)
+        val cols = s.nodeCount.coerceAtLeast(1)
+        val pal = paletteOf(style)
+
+        val colW = 62f
+        val dayW = 62f
+        val rowH = 46f
+        val widthDp = PAD * 2 + dayW + colW * cols
+        val heightDp = PAD * 2 + TITLE_H + HEAD_H + rowH * days.size + FOOT_H
+        val bmp = Bitmap.createBitmap(
+            (widthDp * SCALE).toInt(), (heightDp * SCALE).toInt(), Bitmap.Config.ARGB_8888
+        )
+        val c = Canvas(bmp)
+        c.scale(SCALE, SCALE)
+
+        c.drawRect(0f, 0f, widthDp, heightDp, Paint(Paint.ANTI_ALIAS_FLAG).apply { color = pal.bg })
+
+        val left = PAD + dayW
+        val gridTop = PAD + TITLE_H + HEAD_H
+
+        // ---------- 标题 ----------
+        val tableName = st.tables.firstOrNull { it.id == tableId }?.name ?: "我的课表"
+        val title = Paint(Paint.ANTI_ALIAS_FLAG).apply {
+            color = pal.main; textSize = 19f; typeface = Typeface.create(Typeface.DEFAULT, Typeface.BOLD)
+        }
+        c.drawText("$tableName · 第 $week 周", PAD, PAD + 22f, title)
+
+        val meta = Paint(Paint.ANTI_ALIAS_FLAG).apply { color = pal.sub; textSize = 10.5f }
+        val first = start?.let { CourseLogic.dateOfWeekDay(it, week, 1) }
+        val last = start?.let { CourseLogic.dateOfWeekDay(it, week, 7) }
+        val rangeText =
+            if (first != null && last != null) "${first.format(dateFmt)} - ${last.format(dateFmt)}　" else ""
+        val dayItems = days.associateWith { d -> dayCourses(st, week, tableId, start, d) }
+        val courseCount = dayItems.values.flatten().map { it.course.id }.distinct().size
+        c.drawText("${rangeText}本周 $courseCount 门课", PAD, PAD + 40f, meta)
+
+        // ---------- 表头：左侧星期、右侧节次 ----------
+        val headBold = Paint(Paint.ANTI_ALIAS_FLAG).apply {
+            color = pal.main; textSize = 10.5f; typeface = Typeface.create(Typeface.DEFAULT, Typeface.BOLD)
+            textAlign = Paint.Align.CENTER
+        }
+        val headSub = Paint(Paint.ANTI_ALIAS_FLAG).apply {
+            color = pal.sub; textSize = 7.5f; textAlign = Paint.Align.CENTER
+        }
+        c.drawText("星期", PAD + dayW / 2, PAD + TITLE_H + 24f, headSub)
+        for (j in 0 until cols) {
+            val cx = left + colW * j + colW / 2
+            c.drawText("${j + 1}", cx, PAD + TITLE_H + 16f, headBold)
+            val clock = st.slots.getOrNull(j)?.start
+            if (clock != null) c.drawText(clock, cx, PAD + TITLE_H + 29f, headSub)
+        }
+
+        // ---------- 网格 ----------
+        if (style != Style.MINIMAL) {
+            val line = Paint(Paint.ANTI_ALIAS_FLAG).apply { color = pal.line; strokeWidth = 0.8f }
+            for (i in 0..days.size) {
+                val y = gridTop + rowH * i
+                c.drawLine(PAD, y, left + colW * cols, y, line)
+            }
+            val vTop = gridTop - 6f
+            for (j in 0..cols) {
+                val x = left + colW * j
+                c.drawLine(x, vTop, x, gridTop + rowH * days.size, line)
+            }
+            c.drawLine(PAD, vTop, PAD, gridTop + rowH * days.size, line)
+        }
+
+        // ---------- 每一天一行 ----------
+        val dayBold = Paint(Paint.ANTI_ALIAS_FLAG).apply {
+            color = pal.main; textSize = 11f; typeface = Typeface.create(Typeface.DEFAULT, Typeface.BOLD)
+            textAlign = Paint.Align.CENTER
+        }
+        val daySub = Paint(Paint.ANTI_ALIAS_FLAG).apply {
+            color = pal.sub; textSize = 8f; textAlign = Paint.Align.CENTER
+        }
+        days.forEachIndexed { i, day ->
+            val y0 = gridTop + rowH * i
+            c.drawText(dayNames[day - 1], PAD + dayW / 2, y0 + rowH / 2 - 1f, dayBold)
+            start?.let {
+                val date = CourseLogic.dateOfWeekDay(it, week, day)
+                c.drawText(date.format(dateFmt), PAD + dayW / 2, y0 + rowH / 2 + 10f, daySub)
+            }
+            for (item in dayItems[day].orEmpty()) {
+                val d = item.detail
+                if (d.startNode < 1 || d.startNode > cols) continue
+                val span = d.step.coerceAtMost(cols - d.startNode + 1).coerceAtLeast(1)
+                val l = left + colW * (d.startNode - 1) + 1.2f
+                val r = left + colW * (d.startNode - 1 + span) - 1.2f
+                drawCourseBar(c, item, s, style, pal, l, y0 + 2f, r, y0 + rowH - 2f)
+            }
+        }
+
+        // ---------- 落款 ----------
+        val foot = Paint(Paint.ANTI_ALIAS_FLAG).apply {
+            color = pal.sub; textSize = 8f; textAlign = Paint.Align.RIGHT
+        }
+        c.drawText(
+            "由 AnonSchedule 生成 · ${LocalDate.now().format(dateFmt)}",
+            widthDp - PAD, heightDp - PAD + 2f, foot
+        )
+
+        return bmp
+    }
+
+    /** 横向样式里的一门课：底色 + 课名（单行）+ 地点 / 老师 */
+    private fun drawCourseBar(
+        c: Canvas, item: ShownCourse, s: Settings, style: Style, pal: Palette,
+        l: Float, t: Float, r: Float, b: Float
+    ) {
+        val base = courseColor(item.course.color).toArgb()
+        val alpha = if (style == Style.MINIMAL) 0.16f
+        else (s.cellAlphaPercent / 100f).coerceIn(0.2f, 1f)
+        c.drawRoundRect(
+            RectF(l, t, r, b), s.cellRadiusDp.toFloat(), s.cellRadiusDp.toFloat(),
+            Paint(Paint.ANTI_ALIAS_FLAG).apply {
+                color = base
+                this.alpha = (alpha * 255).toInt()
+            }
+        )
+        if (style == Style.MINIMAL) {
+            c.drawRoundRect(
+                RectF(l, t, l + 2.5f, b), 1.2f, 1.2f,
+                Paint(Paint.ANTI_ALIAS_FLAG).apply { color = base }
+            )
+        }
+
+        val custom = s.courseTextColorArgb
+        val fg = when {
+            custom == null -> if (style == Style.MINIMAL) pal.main else 0xFF222222.toInt()
+            s.courseTextOverlay -> multiply(custom, base)
+            else -> custom
+        }
+        val prefix = when (item.record?.type) {
+            1 -> "【加】"
+            2 -> "【停】"
+            0 -> "【调】"
+            else -> ""
+        }
+        val padX = 4f
+        val textW = (r - l - padX * 2).coerceAtLeast(8f)
+        val namePaint = TextPaint(Paint.ANTI_ALIAS_FLAG).apply {
+            color = fg
+            textSize = s.courseTextSp.toFloat().coerceIn(9f, 14f)
+            typeface = Typeface.create(Typeface.DEFAULT, Typeface.BOLD)
+        }
+        val subPaint = TextPaint(Paint.ANTI_ALIAS_FLAG).apply { color = fg; textSize = 7.5f }
+        c.drawText(ellipsize(prefix + item.course.name, namePaint, textW), l + padX, t + 15f, namePaint)
+        val place = listOf(item.detail.room, item.detail.teacher)
+            .filter { it.isNotBlank() }.joinToString(" ")
+        if (place.isNotBlank() && b - t >= 34f) {
+            c.drawText(ellipsize(place, subPaint, textW), l + padX, t + 27f, subPaint)
+        }
     }
 
     /** 这一列要画的课程（只算本周真正要上的，调课/停课/加课都已叠加） */
@@ -204,21 +399,28 @@ object TimetableImage {
 
     private fun drawCourse(
         c: Canvas, item: ShownCourse, s: Settings,
-        l: Float, t: Float, r: Float, b: Float
+        l: Float, t: Float, r: Float, b: Float,
+        style: Style, pal: Palette
     ) {
         val base = courseColor(item.course.color).toArgb()
-        val alpha = (s.cellAlphaPercent / 100f).coerceIn(0.2f, 1f)
+        // 极简样式只用淡淡的底色 + 左侧色条，避免大片色块
+        val alpha = if (style == Style.MINIMAL) 0.16f
+        else (s.cellAlphaPercent / 100f).coerceIn(0.2f, 1f)
         val fill = Paint(Paint.ANTI_ALIAS_FLAG).apply {
             color = base
             this.alpha = (alpha * 255).toInt()
         }
         val rect = RectF(l, t, r, b)
         c.drawRoundRect(rect, s.cellRadiusDp.toFloat(), s.cellRadiusDp.toFloat(), fill)
+        if (style == Style.MINIMAL) {
+            val bar = Paint(Paint.ANTI_ALIAS_FLAG).apply { color = base }
+            c.drawRoundRect(RectF(l, t, l + 2.5f, b), 1.2f, 1.2f, bar)
+        }
 
         // 文字颜色：与周视图一致（统一深色字，可自定义，可叠加格子色）
         val custom = s.courseTextColorArgb
         val fg = when {
-            custom == null -> 0xFF222222.toInt()
+            custom == null -> if (style == Style.MINIMAL) pal.main else 0xFF222222.toInt()
             s.courseTextOverlay -> multiply(custom, base)
             else -> custom
         }

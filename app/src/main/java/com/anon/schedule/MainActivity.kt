@@ -97,6 +97,7 @@ import com.anon.schedule.data.AppIcons
 import com.anon.schedule.data.Repo
 import com.anon.schedule.data.tableSettings
 import com.anon.schedule.notify.ClassReminder
+import com.anon.schedule.ui.calendar.MonthScreen
 import com.anon.schedule.ui.common.liquidGlassFinish
 import com.anon.schedule.ui.course.EditCourseScreen
 import com.anon.schedule.ui.theme.GlassParams
@@ -188,6 +189,7 @@ sealed class SubPage {
     data object ImportZf : SubPage()
     data object ImportCsv : SubPage()
     data object Grades : SubPage()
+    data object MonthCalendar : SubPage()
     data object Academic : SubPage()
     data object UBang : SubPage()
     data object Chaoxing : SubPage()
@@ -449,6 +451,7 @@ fun AppRoot(addWidgetShortcut: Boolean = false) {
                         SubPage.ImportZf -> ImportZfScreen(onBack = { pop() })
                         SubPage.ImportCsv -> ImportCsvScreen(onBack = { pop() })
                         SubPage.Grades -> GradesScreen(onBack = { pop() })
+                        SubPage.MonthCalendar -> MonthScreen(onBack = { pop() })
                         SubPage.Academic -> AcademicScreen(onBack = { pop() })
                         SubPage.UBang -> UBangScreen(onBack = { pop() })
                         SubPage.Chaoxing -> ChaoxingScreen(onBack = { pop() })

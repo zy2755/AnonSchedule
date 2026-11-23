@@ -35,6 +35,20 @@ private data class UpdateEntry(val version: String, val days: List<UpdateDay>)
 /** 更新内容（新的在最上面；改动按版本归类，同一版本内再按日期分段） */
 private val updateEntries = listOf(
     UpdateEntry(
+        version = "1.3.0",
+        days = listOf(
+            UpdateDay(
+                date = "2026-11-23",
+                items = listOf(
+                    "今日页新增「本周概览」：本周节数、最忙的日子（几天一样忙时会标出并列天数）、本学期累计节数与学期进度，一屏看完",
+                    "课表长图支持四种样式：竖向经典网格、横向（一个星期一行）、深色底、极简（去掉网格线、只留淡色块和左侧色条），在长图对话框里直接切换",
+                    "新增「月历视图」：课表页「更多」里进入，整月看每天几门课，点某天看当天的课程和课程待办",
+                    "版本：升级到 1.3.0"
+                )
+            )
+        )
+    ),
+    UpdateEntry(
         version = "1.2.0",
         days = listOf(
             UpdateDay(

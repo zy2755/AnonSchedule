@@ -75,6 +75,17 @@ fun TodayScreen() {
 
     val overview = CourseLogic.todayOverview(dayCourses, st.slots, now)
 
+    // 本周概览：本周节数、最忙的一天、学期累计；数据没变时不重算
+    val weekStats = remember(st, week) {
+        CourseLogic.weekStats(
+            st = st,
+            week = week,
+            tableId = st.currentTableId,
+            startDate = Repo.startDate(st),
+            maxWeek = s.maxWeek
+        )
+    }
+
     // 今天的课上完了（或本来就没课）：主角卡给一条"明天第一节"的提示
     val tomorrowFirst = if (
         overview.state == CourseLogic.TodayState.DONE ||
@@ -112,6 +123,8 @@ fun TodayScreen() {
         }
 
         item { TodayHero(overview, tomorrowFirst, st.slots) }
+
+        item { WeekOverviewCard(weekStats) }
 
         if (dayCourses.isNotEmpty()) {
             item {
@@ -240,6 +253,109 @@ private fun TodayHero(
                         color = muted
                     )
                 }
+            }
+        }
+    }
+}
+
+// ---------- 本周概览 ----------
+
+@Composable
+private fun WeekOverviewCard(stats: CourseLogic.WeekStats) {
+    val muted = MaterialTheme.colorScheme.onSurfaceVariant
+    val accent = MaterialTheme.colorScheme.primary
+    // 并列最忙时不硬挑一天：显示「5 天 / 各 8 节」
+    val busiestValue = when {
+        stats.busiestDays.isEmpty() -> "—"
+        stats.busiestDays.size > 1 -> "${stats.busiestDays.size} 天"
+        else -> "周" + "一二三四五六日"[stats.busiestDays.first() - 1]
+    }
+    val busiestUnit = when {
+        stats.busiestDays.isEmpty() -> ""
+        stats.busiestDays.size > 1 -> "各 ${stats.busiestDayNodes} 节"
+        else -> "${stats.busiestDayNodes} 节"
+    }
+    GlassCard(Modifier.fillMaxWidth()) {
+        Row(verticalAlignment = Alignment.CenterVertically) {
+            Text(
+                "本周概览",
+                style = MaterialTheme.typography.titleSmall,
+                fontWeight = FontWeight.SemiBold
+            )
+            Spacer(Modifier.weight(1f))
+            Text(
+                "第 ${stats.week} / ${stats.maxWeek} 周",
+                style = MaterialTheme.typography.labelMedium,
+                color = muted
+            )
+        }
+        Spacer(Modifier.height(12.dp))
+        Row(Modifier.fillMaxWidth()) {
+            StatCell(label = "本周", value = "${stats.nodeCount}", unit = "节", modifier = Modifier.weight(1f))
+            StatCell(
+                label = "最忙",
+                value = busiestValue,
+                unit = busiestUnit,
+                modifier = Modifier.weight(1f)
+            )
+            StatCell(label = "本学期", value = "${stats.termNodes}", unit = "节", modifier = Modifier.weight(1f))
+        }
+        Spacer(Modifier.height(14.dp))
+        Row(verticalAlignment = Alignment.CenterVertically) {
+            Text("学期进度", style = MaterialTheme.typography.labelSmall, color = muted)
+            Spacer(Modifier.width(8.dp))
+            Box(
+                Modifier
+                    .weight(1f)
+                    .height(6.dp)
+                    .clip(RoundedCornerShape(3.dp))
+                    .background(accent.copy(alpha = 0.16f))
+            ) {
+                Box(
+                    Modifier
+                        .fillMaxWidth((stats.week.toFloat() / stats.maxWeek).coerceIn(0f, 1f))
+                        .fillMaxHeight()
+                        .background(accent)
+                )
+            }
+            Spacer(Modifier.width(8.dp))
+            Text(
+                "${stats.week * 100 / stats.maxWeek}%",
+                style = MaterialTheme.typography.labelSmall,
+                fontWeight = FontWeight.Bold,
+                color = accent
+            )
+        }
+    }
+}
+
+@Composable
+private fun StatCell(
+    label: String,
+    value: String,
+    unit: String,
+    modifier: Modifier = Modifier
+) {
+    val muted = MaterialTheme.colorScheme.onSurfaceVariant
+    Column(modifier) {
+        Text(label, style = MaterialTheme.typography.labelSmall, color = muted, maxLines = 1)
+        Row(verticalAlignment = Alignment.Bottom) {
+            Text(
+                value,
+                // 「5 天并列」这类长文本降一档字号，三等分宽度下不会被截断
+                style = if (value.length > 3) MaterialTheme.typography.titleMedium
+                else MaterialTheme.typography.titleLarge,
+                fontWeight = FontWeight.Bold,
+                maxLines = 1
+            )
+            if (unit.isNotBlank()) {
+                Text(
+                    unit,
+                    style = MaterialTheme.typography.labelSmall,
+                    color = muted,
+                    modifier = Modifier.padding(start = 3.dp, bottom = 3.dp),
+                    maxLines = 1
+                )
             }
         }
     }

@@ -35,6 +35,20 @@ private data class UpdateEntry(val version: String, val days: List<UpdateDay>)
 /** 更新内容（新的在最上面；改动按版本归类，同一版本内再按日期分段） */
 private val updateEntries = listOf(
     UpdateEntry(
+        version = "1.3.1",
+        days = listOf(
+            UpdateDay(
+                date = "2026-11-23",
+                items = listOf(
+                    "课表页右上角「更多」改成悬浮面板：从屏幕底部升起，周数、课表与功能一屏可见，点外面或返回键收起",
+                    "功能改成两行图标：上课时间 / 已添课程 / 课表设置 / 夜间模式 / 小部件 / 月历 / 分享 / 全局设置",
+                    "修复：原来底部面板每次打开时上边界位置不一致（贴着状态栏或钻到状态栏下面）的问题，随面板形式一起消失",
+                    "版本：升级到 1.3.1"
+                )
+            )
+        )
+    ),
+    UpdateEntry(
         version = "1.3.0",
         days = listOf(
             UpdateDay(

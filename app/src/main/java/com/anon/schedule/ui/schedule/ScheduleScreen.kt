@@ -7,6 +7,7 @@ import android.content.Intent
 import android.graphics.Bitmap
 import android.widget.Toast
 import androidx.compose.animation.AnimatedVisibility
+import androidx.compose.animation.core.MutableTransitionState
 import androidx.compose.animation.core.tween
 import androidx.compose.animation.fadeIn
 import androidx.compose.animation.fadeOut
@@ -22,7 +23,6 @@ import androidx.compose.foundation.interaction.MutableInteractionSource
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.BoxScope
-import androidx.compose.foundation.layout.BoxWithConstraints
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
@@ -57,11 +57,11 @@ import androidx.compose.material.icons.filled.Settings
 import androidx.compose.material.icons.filled.ViewList
 import androidx.compose.material.icons.filled.WbSunny
 import androidx.compose.material.icons.filled.Share
+import androidx.compose.material.icons.filled.Tune
 import androidx.compose.material.icons.filled.Widgets
 import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.DropdownMenu
 import androidx.compose.material3.DropdownMenuItem
-import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.FilterChip
 import androidx.compose.material3.Checkbox
 import androidx.compose.material3.HorizontalDivider
@@ -69,14 +69,13 @@ import androidx.compose.material3.Icon
 import androidx.compose.material3.LocalTextStyle
 import androidx.compose.material3.IconButton
 import androidx.compose.material3.MaterialTheme
-import androidx.compose.material3.ModalBottomSheet
 import androidx.compose.material3.OutlinedTextField
-import androidx.compose.material3.rememberModalBottomSheetState
 import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
+import androidx.compose.runtime.SideEffect
 import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.derivedStateOf
 import androidx.compose.runtime.getValue
@@ -104,6 +103,7 @@ import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.input.pointer.pointerInput
 import androidx.compose.ui.layout.onSizeChanged
 import androidx.compose.ui.platform.LocalContext
+import androidx.compose.ui.platform.LocalConfiguration
 import androidx.compose.ui.platform.LocalDensity
 import androidx.compose.ui.platform.LocalView
 import androidx.compose.ui.text.font.FontWeight
@@ -115,6 +115,7 @@ import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.compose.ui.window.Dialog
 import androidx.compose.ui.window.DialogProperties
+import androidx.compose.ui.window.DialogWindowProvider
 import androidx.core.content.FileProvider
 import com.anon.schedule.SubPage
 import com.anon.schedule.data.AppState
@@ -130,16 +131,12 @@ import com.anon.schedule.data.TableBean
 import com.anon.schedule.data.TimeSlot
 import com.anon.schedule.data.tableSettings
 import com.anon.schedule.ui.common.GradientSlider
-import com.anon.schedule.ui.common.GroupCard
-import com.anon.schedule.ui.common.GroupLabel
-import com.anon.schedule.ui.common.GroupRow
 import com.anon.schedule.ui.common.TileBlue
 import com.anon.schedule.ui.common.TileCyan
 import com.anon.schedule.ui.common.TileGreen
 import com.anon.schedule.ui.common.TileOrange
 import com.anon.schedule.ui.common.TilePink
 import com.anon.schedule.ui.common.TilePurple
-import com.anon.schedule.ui.common.ThinDivider
 import com.anon.schedule.ui.common.courseColor
 import com.anon.schedule.ui.theme.LocalGlass
 import com.anon.schedule.widget.TodayLargeWidget
@@ -298,8 +295,17 @@ fun ScheduleScreen(
                 )
             }
 
-            IconButton(onClick = { showMore = true }) {
-                Icon(Icons.Default.MoreVert, contentDescription = "更多")
+            Box {
+                IconButton(onClick = { showMore = true }) {
+                    Icon(Icons.Default.MoreVert, contentDescription = "更多")
+                }
+                // 锚在三点按钮下方，点外面 / 返回键收起
+                MoreMenu(
+                    expanded = showMore,
+                    onDismiss = { showMore = false },
+                    onOpenSub = { showMore = false; onOpenSub(it) },
+                    onAddWidget = { showMore = false; addingWidget = true }
+                )
             }
         }
 
@@ -403,14 +409,6 @@ fun ScheduleScreen(
             dismissButton = {
                 TextButton(onClick = { pendingMove = null }) { Text("取消") }
             }
-        )
-    }
-
-    if (showMore) {
-        MoreSheet(
-            onDismiss = { showMore = false },
-            onOpenSub = { showMore = false; onOpenSub(it) },
-            onAddWidget = { showMore = false; addingWidget = true }
         )
     }
 
@@ -1502,10 +1500,10 @@ private fun DetailRow(icon: ImageVector, title: String, value: String) {
     }
 }
 
-/** 右上角「更多」面板：周数 / 课表 / 功能宫格 */
-@OptIn(ExperimentalMaterial3Api::class)
+/** 右上角「更多」：悬浮卡片，从屏幕底部升起（周数 / 课表 / 功能图标） */
 @Composable
-fun MoreSheet(
+fun MoreMenu(
+    expanded: Boolean,
     onDismiss: () -> Unit,
     onOpenSub: (SubPage) -> Unit,
     onAddWidget: () -> Unit
@@ -1524,201 +1522,237 @@ fun MoreSheet(
     // 长图样式：竖向 / 横向 / 深色 / 极简
     var imageStyle by remember { mutableStateOf(TimetableImage.Style.VERTICAL) }
     val dark = st.settings.themeMode == 2
+    val muted = MaterialTheme.colorScheme.onSurfaceVariant
 
-    ModalBottomSheet(
-        onDismissRequest = onDismiss,
-        sheetState = rememberModalBottomSheetState(skipPartiallyExpanded = true),
-        // 内容自己可滚动时，面板再抢竖直手势会和内容卷动互相拉扯（上滑一下又被弹回）。
-        // 关掉面板自身的拖拽，竖直手势全部交给内容；关闭走点外部 / 返回键。
-        sheetGesturesEnabled = false
-    ) {
-        Column(
-            Modifier
-                .fillMaxWidth()
-                .verticalScroll(rememberScrollState())
-                .padding(bottom = 36.dp)
+    // 面板宽度：和悬浮卡片一致，两侧各留 16dp
+    val screenWidth = LocalConfiguration.current.screenWidthDp.dp
+    val menuWidth = (screenWidth - 32.dp).coerceAtLeast(280.dp)
+    val screenHeight = LocalConfiguration.current.screenHeightDp.dp
+
+    if (expanded) {
+        // 悬浮卡片：从屏幕底部升起。用 Dialog 才能覆盖到系统导航栏，
+        // 避免卡片和底栏之间露出一条不同颜色的背景缝。
+        val visibleState = remember { MutableTransitionState(false).apply { targetState = true } }
+        val requestClose: () -> Unit = { visibleState.targetState = false }
+        LaunchedEffect(visibleState.currentState, visibleState.targetState) {
+            if (!visibleState.currentState && !visibleState.targetState) onDismiss()
+        }
+        Dialog(
+            onDismissRequest = requestClose,
+            properties = DialogProperties(
+                usePlatformDefaultWidth = false,
+                decorFitsSystemWindows = false
+            )
         ) {
-            // ---------- 周数 ----------
-            GroupLabel("周数")
-            GroupCard {
-                GroupRow(
-                    icon = Icons.Default.CalendarMonth,
-                    tileColor = TileOrange,
-                    title = "第 ${s.currentWeek} 周",
-                    subtitle = "共 ${s.maxWeek} 周 · 点击可修改",
-                    onClick = {
-                        weekText = s.currentWeek.toString()
-                        editingWeek = true
-                    }
-                )
-                var sliderPos by remember(s.currentWeek, s.maxWeek) {
-                    mutableFloatStateOf(s.currentWeek.toFloat())
-                }
-                var dragging by remember { mutableStateOf(false) }
-                BoxWithConstraints(
+            // 去掉 Dialog 默认的整屏压暗：关闭时只滑走卡片，不会留下深色残影
+            val dialogWindowProvider = LocalView.current.parent as? DialogWindowProvider
+            SideEffect { dialogWindowProvider?.window?.setDimAmount(0f) }
+            Box(Modifier.fillMaxSize()) {
+                // 透明点击层：点卡片外面收起
+                Box(
                     Modifier
-                        .fillMaxWidth()
-                        .padding(start = 14.dp, end = 14.dp, bottom = 8.dp)
+                        .fillMaxSize()
+                        .clickable(
+                            interactionSource = remember { MutableInteractionSource() },
+                            indication = null
+                        ) { requestClose() }
+                )
+                AnimatedVisibility(
+                    visibleState = visibleState,
+                    enter = slideInVertically(
+                        animationSpec = tween(220),
+                        initialOffsetY = { it }
+                    ) + fadeIn(animationSpec = tween(140)),
+                    exit = slideOutVertically(
+                        animationSpec = tween(180),
+                        targetOffsetY = { it }
+                    ) + fadeOut(animationSpec = tween(120)),
+                    modifier = Modifier.align(Alignment.BottomCenter)
                 ) {
-                    // 拖动时滑块上方实时弹出当前选中周数的文字标签
-                    if (dragging) {
-                        val maxW = s.maxWeek.coerceAtLeast(1)
-                        val frac = if (maxW <= 1) 0.5f
-                        else ((sliderPos - 1f) / (maxW - 1f)).coerceIn(0f, 1f)
-                        val labelW = 60.dp
-                        val x = (maxWidth * frac - labelW / 2)
-                            .coerceIn(0.dp, (maxWidth - labelW).coerceAtLeast(0.dp))
-                        Surface(
-                            color = MaterialTheme.colorScheme.primary,
-                            contentColor = MaterialTheme.colorScheme.onPrimary,
-                            shape = RoundedCornerShape(10.dp),
-                            modifier = Modifier
-                                .align(Alignment.TopStart)
-                                .width(labelW)
-                                .offset(x = x)
-                        ) {
-                            Text(
-                                "第${sliderPos.roundToInt()}周",
-                                style = MaterialTheme.typography.labelMedium,
-                                textAlign = TextAlign.Center,
-                                maxLines = 1,
-                                modifier = Modifier
-                                    .fillMaxWidth()
-                                    .padding(vertical = 3.dp)
-                            )
-                        }
-                    }
-                    // 离散档位滑块：1..maxWeek 逐周吸附
-                    GradientSlider(
-                        value = sliderPos,
-                        onValueChange = {
-                            dragging = true
-                            sliderPos = it
-                        },
-                        valueRange = 1f..s.maxWeek.toFloat().coerceAtLeast(1f),
-                        steps = (s.maxWeek - 2).coerceAtLeast(0),
-                        onValueChangeFinished = {
-                            dragging = false
-                            Repo.updateSettings {
-                                it.copy(currentWeek = sliderPos.roundToInt().coerceIn(1, it.maxWeek))
-                            }
-                        },
+                    Surface(
+                        shape = RoundedCornerShape(24.dp),
+                        color = MaterialTheme.colorScheme.surfaceContainerHigh,
+                        tonalElevation = 0.dp,
+                        shadowElevation = 14.dp,
                         modifier = Modifier
-                            .fillMaxWidth()
-                            .padding(top = 26.dp)
-                    )
-                }
-                if (s.startDate == null) {
-                    Text(
-                        "未设置开学日期，周数按推算起点计；可在设置里设置开学日期",
-                        style = MaterialTheme.typography.bodySmall,
-                        color = MaterialTheme.colorScheme.onSurfaceVariant,
-                        modifier = Modifier.padding(start = 14.dp, end = 14.dp, bottom = 12.dp)
-                    )
-                }
+                            .width(menuWidth)
+                            .heightIn(max = screenHeight * 0.9f)
+                    ) {
+                        Column(
+                            Modifier
+                                .fillMaxWidth()
+                                .verticalScroll(rememberScrollState())
+                                .navigationBarsPadding()
+                                .padding(start = 16.dp, end = 16.dp, top = 4.dp, bottom = 12.dp)
+                        ) {
+                            // ---------- 周数 ----------
+            Row(
+                verticalAlignment = Alignment.CenterVertically,
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .padding(top = 4.dp)
+            ) {
+                Text("周数", style = MaterialTheme.typography.labelMedium, color = muted)
+                Spacer(Modifier.weight(1f))
+                Text(
+                    "修改当前周",
+                    style = MaterialTheme.typography.labelLarge,
+                    color = MaterialTheme.colorScheme.primary,
+                    modifier = Modifier
+                        .clip(RoundedCornerShape(8.dp))
+                        .clickable {
+                            weekText = s.currentWeek.toString()
+                            onDismiss()
+                            editingWeek = true
+                        }
+                        .padding(horizontal = 8.dp, vertical = 4.dp)
+                )
+            }
+            // 拖动时标题实时跟随滑块。DropdownMenu 内部按固有宽度测量内容，
+            // 不能放 BoxWithConstraints 这类 SubcomposeLayout，所以不再做浮出的周数气泡。
+            var sliderPos by remember(s.currentWeek, s.maxWeek) {
+                mutableFloatStateOf(s.currentWeek.toFloat())
+            }
+            Text(
+                "第 ${sliderPos.roundToInt()} 周 · 共 ${s.maxWeek} 周",
+                style = MaterialTheme.typography.bodySmall,
+                color = muted
+            )
+            // 离散档位滑块：1..maxWeek 逐周吸附
+            GradientSlider(
+                value = sliderPos,
+                onValueChange = { sliderPos = it },
+                valueRange = 1f..s.maxWeek.toFloat().coerceAtLeast(1f),
+                steps = (s.maxWeek - 2).coerceAtLeast(0),
+                onValueChangeFinished = {
+                    Repo.updateSettings {
+                        it.copy(currentWeek = sliderPos.roundToInt().coerceIn(1, it.maxWeek))
+                    }
+                },
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .padding(top = 10.dp, bottom = 6.dp)
+            )
+            if (s.startDate == null) {
+                Text(
+                    "未设置开学日期，周数按推算起点计；可在设置里设置开学日期",
+                    style = MaterialTheme.typography.bodySmall,
+                    color = muted,
+                    modifier = Modifier.padding(bottom = 8.dp)
+                )
             }
 
+            HorizontalDivider(
+                color = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.08f),
+                modifier = Modifier.padding(top = 6.dp)
+            )
             // ---------- 课表 ----------
             Row(
                 verticalAlignment = Alignment.CenterVertically,
                 modifier = Modifier
                     .fillMaxWidth()
-                    .padding(start = 26.dp, end = 18.dp, top = 20.dp, bottom = 8.dp)
+                    .padding(top = 12.dp)
             ) {
                 Text(
                     "课表",
                     style = MaterialTheme.typography.labelMedium,
-                    color = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.85f),
+                    color = muted,
                     modifier = Modifier.weight(1f)
                 )
                 Text(
-                    "新建",
+                    "新建课表",
                     style = MaterialTheme.typography.labelLarge,
                     color = MaterialTheme.colorScheme.primary,
                     modifier = Modifier
-                        .clickable { addingTable = true }
-                        .padding(vertical = 4.dp, horizontal = 6.dp)
+                        .clip(RoundedCornerShape(8.dp))
+                        .clickable {
+                            onDismiss()
+                            addingTable = true
+                        }
+                        .padding(horizontal = 8.dp, vertical = 4.dp)
                 )
                 Text(
                     "管理",
                     style = MaterialTheme.typography.labelLarge,
                     color = MaterialTheme.colorScheme.primary,
                     modifier = Modifier
+                        .clip(RoundedCornerShape(8.dp))
                         .clickable { onOpenSub(SubPage.TableManage) }
-                        .padding(vertical = 4.dp, horizontal = 6.dp)
+                        .padding(horizontal = 8.dp, vertical = 4.dp)
                 )
             }
-            GroupCard {
-                Row(
-                    Modifier
-                        .fillMaxWidth()
-                        .horizontalScroll(rememberScrollState())
-                        .padding(14.dp),
-                    horizontalArrangement = Arrangement.spacedBy(10.dp)
-                ) {
-                    st.tables.forEach { table ->
-                        TableThumb(
-                            table = table,
-                            selected = table.id == st.currentTableId,
-                            count = st.details.count { it.tableId == table.id },
-                            onSelect = { Repo.update { cur -> cur.copy(currentTableId = table.id) } }
-                        )
-                    }
+            Row(
+                Modifier
+                    .fillMaxWidth()
+                    .horizontalScroll(rememberScrollState())
+                    .padding(vertical = 10.dp),
+                horizontalArrangement = Arrangement.spacedBy(10.dp)
+            ) {
+                st.tables.forEach { table ->
+                    TableThumb(
+                        table = table,
+                        selected = table.id == st.currentTableId,
+                        count = st.details.count { it.tableId == table.id },
+                        onSelect = { Repo.update { cur -> cur.copy(currentTableId = table.id) } }
+                    )
                 }
             }
 
+            HorizontalDivider(
+                color = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.08f),
+                modifier = Modifier.padding(bottom = 2.dp)
+            )
             // ---------- 功能 ----------
-            GroupLabel("功能")
-            GroupCard {
-                Row(
-                    Modifier
-                        .fillMaxWidth()
-                        .padding(horizontal = 8.dp, vertical = 14.dp),
-                    horizontalArrangement = Arrangement.SpaceBetween
+            Row(
+                Modifier
+                    .fillMaxWidth()
+                    .padding(top = 8.dp),
+                horizontalArrangement = Arrangement.spacedBy(4.dp)
+            ) {
+                FunctionIcon("上课时间", Icons.Default.AccessTime, TileBlue, Modifier.weight(1f)) {
+                    onOpenSub(SubPage.TimeTable)
+                }
+                FunctionIcon("已添课程", Icons.Default.ViewList, TileGreen, Modifier.weight(1f)) {
+                    onOpenSub(SubPage.CourseList)
+                }
+                FunctionIcon("课表设置", Icons.Default.Settings, TilePurple, Modifier.weight(1f)) {
+                    onOpenSub(SubPage.TableSettings(st.currentTableId))
+                }
+                FunctionIcon(
+                    label = if (dark) "浅色模式" else "夜间模式",
+                    icon = if (dark) Icons.Default.WbSunny else Icons.Default.NightsStay,
+                    tileColor = TileOrange,
+                    modifier = Modifier.weight(1f)
                 ) {
-                    FunctionIcon("上课时间", Icons.Default.AccessTime, TileBlue) {
-                        onOpenSub(SubPage.TimeTable)
-                    }
-                    FunctionIcon("已添课程", Icons.Default.ViewList, TileGreen) {
-                        onOpenSub(SubPage.CourseList)
-                    }
-                    FunctionIcon("课表设置", Icons.Default.Settings, TilePurple) {
-                        onOpenSub(SubPage.TableSettings(st.currentTableId))
-                    }
-                    FunctionIcon(
-                        label = if (dark) "浅色模式" else "夜间模式",
-                        icon = if (dark) Icons.Default.WbSunny else Icons.Default.NightsStay,
-                        tileColor = TileOrange
-                    ) {
-                        Repo.update { s -> s.copy(settings = s.settings.copy(themeMode = if (s.settings.themeMode == 2) 1 else 2)) }
+                    Repo.update { s -> s.copy(settings = s.settings.copy(themeMode = if (s.settings.themeMode == 2) 1 else 2)) }
+                }
+            }
+            Row(
+                Modifier
+                    .fillMaxWidth()
+                    .padding(top = 2.dp, bottom = 6.dp),
+                horizontalArrangement = Arrangement.spacedBy(4.dp)
+            ) {
+                FunctionIcon("小部件", Icons.Default.Widgets, TilePink, Modifier.weight(1f)) {
+                    onDismiss()
+                    onAddWidget()
+                }
+                FunctionIcon("月历", Icons.Default.CalendarMonth, TileGreen, Modifier.weight(1f)) {
+                    onOpenSub(SubPage.MonthCalendar)
+                }
+                FunctionIcon("分享", Icons.Default.Share, TileCyan, Modifier.weight(1f)) {
+                    onDismiss()
+                    showShareOptions = true
+                }
+                FunctionIcon("全局设置", Icons.Default.Tune, TileBlue, Modifier.weight(1f)) {
+                    onOpenSub(SubPage.Settings)
+                }
+            }
                     }
                 }
-                ThinDivider()
-                GroupRow(
-                    icon = Icons.Default.Widgets,
-                    tileColor = TilePink,
-                    title = "添加小部件",
-                    subtitle = "把今日课程放到桌面",
-                    onClick = onAddWidget
-                )
-                ThinDivider()
-                GroupRow(
-                    icon = Icons.Default.CalendarMonth,
-                    tileColor = TileGreen,
-                    title = "月历视图",
-                    subtitle = "整月看课表，点某天看当天安排",
-                    onClick = { onOpenSub(SubPage.MonthCalendar) }
-                )
-                ThinDivider()
-                GroupRow(
-                    icon = Icons.Default.Share,
-                    tileColor = TileCyan,
-                    title = "分享课表",
-                    subtitle = "文字发给同学，或导出 CSV 文件",
-                    onClick = { showShareOptions = true }
-                )
             }
         }
+    }
     }
 
     if (editingWeek) {
@@ -2186,12 +2220,18 @@ private fun WidgetPinRow(title: String, provider: Class<*>, onDone: () -> Unit) 
 
 /** 彩色圆角方块功能图标 */
 @Composable
-private fun FunctionIcon(label: String, icon: ImageVector, tileColor: Color, onClick: () -> Unit) {
+private fun FunctionIcon(
+    label: String,
+    icon: ImageVector,
+    tileColor: Color,
+    modifier: Modifier = Modifier,
+    onClick: () -> Unit
+) {
     Column(
         horizontalAlignment = Alignment.CenterHorizontally,
-        modifier = Modifier
+        modifier = modifier
             .clickable(onClick = onClick)
-            .padding(horizontal = 6.dp, vertical = 2.dp)
+            .padding(horizontal = 4.dp, vertical = 2.dp)
     ) {
         Box(
             Modifier

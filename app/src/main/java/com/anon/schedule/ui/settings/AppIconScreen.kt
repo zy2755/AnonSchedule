@@ -130,9 +130,11 @@ fun AppIconScreen(onBack: () -> Unit) {
     }
 }
 
+// 预览必须用普通位图：R.mipmap.* 在 26+ 是 adaptive-icon XML，
+// painterResource 只能解析 VectorDrawable / PNG，会直接抛异常
 private fun iconRes(icon: AppIcon): Int = when (icon) {
-    AppIcon.Default -> R.drawable.ic_launcher
-    AppIcon.Sky -> R.drawable.ic_launcher_sky
-    AppIcon.Mint -> R.drawable.ic_launcher_mint
-    AppIcon.Amber -> R.drawable.ic_launcher_amber
+    AppIcon.Default -> R.drawable.ic_preview
+    AppIcon.Sky -> R.drawable.ic_preview_sky
+    AppIcon.Mint -> R.drawable.ic_preview_mint
+    AppIcon.Amber -> R.drawable.ic_preview_amber
 }

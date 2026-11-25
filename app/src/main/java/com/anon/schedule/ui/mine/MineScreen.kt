@@ -19,6 +19,7 @@ import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.Assessment
 import androidx.compose.material.icons.filled.Bathtub
+import androidx.compose.material.icons.filled.Check
 import androidx.compose.material.icons.filled.ChevronRight
 import androidx.compose.material.icons.filled.History
 import androidx.compose.material.icons.filled.List
@@ -70,7 +71,8 @@ fun MineScreen(
     onAcademic: () -> Unit,
     onUBang: () -> Unit,
     onChaoxing: () -> Unit,
-    onUpdateLog: () -> Unit
+    onUpdateLog: () -> Unit,
+    onTodos: () -> Unit = {}
 ) {
     val st by Repo.state.collectAsState()
     val context = LocalContext.current
@@ -130,6 +132,14 @@ fun MineScreen(
 
         SectionTitle("外观")
         CardOpacityRow()
+
+        SectionTitle("学习")
+        GlassCard(
+            modifier = Modifier.fillMaxWidth(),
+            contentPadding = listCardPadding
+        ) {
+            MineEntryRow(Icons.Default.Check, "待办清单", listRowPadding, onTodos)
+        }
 
         SectionTitle("教务")
         GlassCard(

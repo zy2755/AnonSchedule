@@ -5,8 +5,10 @@
     <string name="widget_large_label">今日课程 · 4×4</string>
     <string name="widget_wide_label">今日课程 · 4×2</string>
     <string name="widget_mt_label">今日 · 明日 · 4×4</string>
+    <string name="widget_week_label">本周课表 · 4×4</string>
     <string name="widget_desc">在桌面显示今天的课程安排</string>
     <string name="widget_mt_desc">左侧今日课程、右侧明日课程</string>
+    <string name="widget_week_desc">在桌面显示整周课程表，可自由拉伸</string>
     <!-- 桌面长按图标 → 快捷方式 -->
     <string name="shortcut_add_widget_short">添加小部件</string>
     <string name="shortcut_add_widget_long">添加小部件到桌面</string>

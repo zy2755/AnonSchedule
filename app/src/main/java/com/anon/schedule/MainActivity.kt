@@ -97,6 +97,8 @@ import com.anon.schedule.data.AppIcons
 import com.anon.schedule.data.Repo
 import com.anon.schedule.data.tableSettings
 import com.anon.schedule.notify.ClassReminder
+import com.anon.schedule.notify.NextClassNotifier
+import com.anon.schedule.notify.TodoReminder
 import com.anon.schedule.ui.calendar.MonthScreen
 import com.anon.schedule.ui.common.liquidGlassFinish
 import com.anon.schedule.ui.course.EditCourseScreen
@@ -130,6 +132,7 @@ import com.anon.schedule.ui.theme.LocalWallpaperHaze
 import com.anon.schedule.ui.theme.isDarkMode
 import com.anon.schedule.ui.theme.paletteBackgroundColor
 import com.anon.schedule.ui.today.TodayScreen
+import com.anon.schedule.ui.todo.TodoScreen
 import com.anon.schedule.widget.WidgetRefresh
 import com.anon.schedule.widget.Widgets
 import dev.chrisbanes.haze.HazeState
@@ -190,6 +193,7 @@ sealed class SubPage {
     data object ImportCsv : SubPage()
     data object Grades : SubPage()
     data object MonthCalendar : SubPage()
+    data object TodoList : SubPage()
     data object Academic : SubPage()
     data object UBang : SubPage()
     data object Chaoxing : SubPage()
@@ -213,6 +217,10 @@ class MainActivity : ComponentActivity() {
         CardAlphaPreview.floatValue = Repo.state.value.tableSettings().cardAlphaPercent / 100f
         // 课程/设置变动后重排上课提醒（进程被杀或错过开机广播时也靠这里补）
         ClassReminder.scheduleAll(applicationContext)
+        // 待办到期提醒同理：启动时按最新清单重排
+        TodoReminder.scheduleAll(applicationContext)
+        // 通知栏「下节课」先按当前数据刷一次
+        NextClassNotifier.refresh(applicationContext)
         // 小组件的到点自刷闹钟也在启动时接上，避免跨零点后还停在昨天的日期
         WidgetRefresh.scheduleNext(applicationContext)
         // 清单里窗口/闪屏底色默认写成了深色（防白屏）；浅色用户在这里改回浅色，让启动窗口和主题一致
@@ -294,6 +302,8 @@ class MainActivity : ComponentActivity() {
         Widgets.refreshAll(applicationContext)
         // 课表可能刚被改过：按最新数据重排上课提醒
         ClassReminder.scheduleAll(applicationContext)
+        // 待办可能刚被勾掉/改期：同样重排
+        TodoReminder.scheduleAll(applicationContext)
     }
 }
 
@@ -412,7 +422,7 @@ fun AppRoot(addWidgetShortcut: Boolean = false) {
                         .padding(padding)
                 ) {
                     // 三个 tab 常驻组合：切 tab / 进出二级页面只做显隐，不再整表重组
-                    TabSlot(sub == null && tab == 0) { TodayScreen() }
+                    TabSlot(sub == null && tab == 0) { TodayScreen(onOpenTodos = { push(SubPage.TodoList) }) }
                     TabSlot(sub == null && tab == 1) {
                         ScheduleScreen(
                             onImportZf = { push(SubPage.ImportZf) },
@@ -429,7 +439,8 @@ fun AppRoot(addWidgetShortcut: Boolean = false) {
                             onAcademic = { push(SubPage.Academic) },
                             onUBang = { push(SubPage.UBang) },
                             onChaoxing = { push(SubPage.Chaoxing) },
-                            onUpdateLog = { push(SubPage.UpdateLog) }
+                            onUpdateLog = { push(SubPage.UpdateLog) },
+                            onTodos = { push(SubPage.TodoList) }
                         )
                     }
                     // 二级页面浮在 tab 之上
@@ -452,6 +463,7 @@ fun AppRoot(addWidgetShortcut: Boolean = false) {
                         SubPage.ImportCsv -> ImportCsvScreen(onBack = { pop() })
                         SubPage.Grades -> GradesScreen(onBack = { pop() })
                         SubPage.MonthCalendar -> MonthScreen(onBack = { pop() })
+                        SubPage.TodoList -> TodoScreen(onBack = { pop() })
                         SubPage.Academic -> AcademicScreen(onBack = { pop() })
                         SubPage.UBang -> UBangScreen(onBack = { pop() })
                         SubPage.Chaoxing -> ChaoxingScreen(onBack = { pop() })

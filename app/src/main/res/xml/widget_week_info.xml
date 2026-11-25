@@ -1,0 +1,13 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!-- 4×4 本周课表小组件 -->
+<appwidget-provider xmlns:android="http://schemas.android.com/apk/res/android"
+    android:description="@string/widget_week_desc"
+    android:initialLayout="@layout/widget_week"
+    android:minHeight="220dp"
+    android:minWidth="250dp"
+    android:previewLayout="@layout/widget_week"
+    android:resizeMode="horizontal|vertical"
+    android:targetCellHeight="4"
+    android:targetCellWidth="4"
+    android:updatePeriodMillis="1800000"
+    android:widgetCategory="home_screen" />

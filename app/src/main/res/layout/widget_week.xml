@@ -1,0 +1,16 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!-- 4×4 本周课表：整个课程表按图片绘制，可自由拉伸 -->
+<FrameLayout xmlns:android="http://schemas.android.com/apk/res/android"
+    android:id="@+id/widget_week_root"
+    android:layout_width="match_parent"
+    android:layout_height="match_parent"
+    android:background="@drawable/widget_bg"
+    android:padding="6dp">
+
+    <ImageView
+        android:id="@+id/widget_week_image"
+        android:layout_width="match_parent"
+        android:layout_height="match_parent"
+        android:contentDescription="@string/widget_week_label"
+        android:scaleType="fitXY" />
+</FrameLayout>

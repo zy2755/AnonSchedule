@@ -23,6 +23,8 @@ class ClassReminderReceiver : BroadcastReceiver() {
 class ReminderBootReceiver : BroadcastReceiver() {
     override fun onReceive(context: Context, intent: Intent) {
         ClassReminder.scheduleAll(context)
+        // 闹钟在关机后会被系统清掉：待办提醒也要跟着重排
+        TodoReminder.scheduleAll(context)
         // 顺便把小组件刷一次并接上自刷闹钟，避免关机跨天之后还停在旧日期
         Widgets.refreshAll(context)
     }

@@ -11,7 +11,9 @@ data class TimeSlot(val start: String, val end: String)
 data class TableBean(
     val id: Long = 0L,
     val name: String = "我的课表",
-    val settings: Settings? = null
+    val settings: Settings? = null,
+    val archived: Boolean = false,      // 已归档的旧学期课表（不在切换器里出现）
+    val semesterName: String = ""       // 归档时的学期名，如「2025 秋季」
 )
 
 /** 课程基本信息 */
@@ -58,14 +60,17 @@ data class ChangeRecord(
     val step: Int = 1
 )
 
-/** 课程待办：挂在某门课（courseId）下的一条计划，勾掉后仍保留记录 */
+/** 待办：courseId=0 表示通用待办（不挂在某门课下），勾掉后仍保留记录 */
 @Serializable
 data class CourseTodo(
     val id: Long,
     val courseId: Long,
     val text: String,
     val done: Boolean = false,
-    val createdAt: Long = 0L
+    val createdAt: Long = 0L,
+    val dueDate: Long = 0L,        // 截止日期（epochDay），0 = 没有日期
+    val dueMinute: Int = -1,        // 截止时刻（当天第几分钟），-1 = 全天
+    val remind: Boolean = false     // 到截止时间发通知提醒
 )
 
 /** 一条成绩记录（从教务抓取，按 学年+学期 累积） */
@@ -126,6 +131,7 @@ data class Settings(
     // ---- 提醒 ----
     val reminderEnabled: Boolean = false,   // 上课前提醒
     val reminderLeadMinutes: Int = 10,      // 提前多少分钟提醒
+    val nextClassNotifyEnabled: Boolean = false, // 通知栏常驻显示下节课
     // ---- 成绩 ----
     val gpaArithmetic: Boolean = false      // 平均分/绩点口径：false=学分加权（默认） true=算术平均
 )

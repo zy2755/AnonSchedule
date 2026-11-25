@@ -34,6 +34,7 @@ import androidx.compose.material.icons.filled.DateRange
 import androidx.compose.material.icons.filled.Image
 import androidx.compose.material.icons.filled.Layers
 import androidx.compose.material.icons.filled.Loop
+import androidx.compose.material.icons.filled.Notifications
 import androidx.compose.material.icons.filled.NotificationsActive
 import androidx.compose.material.icons.filled.Palette
 import androidx.compose.material.icons.filled.Speed
@@ -74,6 +75,7 @@ import com.anon.schedule.data.AppIcon
 import com.anon.schedule.data.Repo
 import com.anon.schedule.data.tableSettings
 import com.anon.schedule.notify.ClassReminder
+import com.anon.schedule.notify.NextClassNotifier
 import com.anon.schedule.ui.common.GroupCard
 import com.anon.schedule.ui.theme.AppPalette
 import com.anon.schedule.ui.theme.AppPalettes
@@ -362,6 +364,30 @@ fun SettingsScreen(onBack: () -> Unit, onOpenSub: (SubPage) -> Unit) {
                         onClick = { showLeadPicker = true }
                     )
                 }
+                GroupRow(
+                    icon = Icons.Default.Notifications,
+                    tileColor = TilePurple,
+                    title = "下节课常驻通知",
+                    subtitle = if (settings.nextClassNotifyEnabled)
+                        "通知栏常挂下节课，上下课自动更新"
+                    else "关闭时不占用通知栏",
+                    trailing = {
+                        PillSwitch(
+                            checked = settings.nextClassNotifyEnabled,
+                            onCheckedChange = { on ->
+                                Repo.updateSettings { s -> s.copy(nextClassNotifyEnabled = on) }
+                                if (on) {
+                                    if (!ClassReminder.canPostNotifications(context)) {
+                                        notifPermission.launch(Manifest.permission.POST_NOTIFICATIONS)
+                                    }
+                                    NextClassNotifier.refresh(context)
+                                } else {
+                                    NextClassNotifier.cancel(context)
+                                }
+                            }
+                        )
+                    }
+                )
             }
 
             GroupLabel("外观")
@@ -423,7 +449,8 @@ fun SettingsScreen(onBack: () -> Unit, onOpenSub: (SubPage) -> Unit) {
                 )
             }
 
-            androidx.compose.foundation.layout.Spacer(Modifier.padding(bottom = 32.dp))
+            // 底部留出足够空间：全面屏手势的底部热区会吃掉最后一行的点击
+            androidx.compose.foundation.layout.Spacer(Modifier.padding(bottom = 96.dp))
         }
     }
 

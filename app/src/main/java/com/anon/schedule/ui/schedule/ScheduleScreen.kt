@@ -30,6 +30,8 @@ import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.heightIn
+import androidx.compose.foundation.lazy.LazyColumn
+import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.layout.navigationBarsPadding
 import androidx.compose.foundation.layout.offset
 import androidx.compose.foundation.layout.padding
@@ -53,6 +55,7 @@ import androidx.compose.material.icons.filled.MoreVert
 import androidx.compose.material.icons.filled.NightsStay
 import androidx.compose.material.icons.filled.Person
 import androidx.compose.material.icons.filled.Place
+import androidx.compose.material.icons.filled.Search
 import androidx.compose.material.icons.filled.Settings
 import androidx.compose.material.icons.filled.ViewList
 import androidx.compose.material.icons.filled.WbSunny
@@ -85,6 +88,7 @@ import androidx.compose.runtime.mutableLongStateOf
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
+import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.alpha
@@ -143,12 +147,14 @@ import com.anon.schedule.widget.TodayLargeWidget
 import com.anon.schedule.widget.TodaySmallWidget
 import com.anon.schedule.widget.TodayTomorrowWidget
 import com.anon.schedule.widget.TodayWideWidget
+import com.anon.schedule.widget.WeekTimetableWidget
 import java.time.format.DateTimeFormatter
 import java.io.File
 import java.io.FileOutputStream
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.flow.collect
 import kotlinx.coroutines.flow.first
+import kotlinx.coroutines.launch
 import androidx.compose.runtime.snapshotFlow
 import java.time.LocalDate
 import kotlin.math.roundToInt
@@ -194,6 +200,8 @@ fun ScheduleScreen(
     var showImportMenu by remember { mutableStateOf(false) }
     var deleteTarget by remember { mutableStateOf<ShownCourse?>(null) }
     var addingWidget by remember { mutableStateOf(false) }
+    var showSearch by remember { mutableStateOf(false) }
+    val scope = rememberCoroutineScope()
 
     // 桌面长按图标 →「添加小部件」快捷方式进来：直接弹出选择框，不用先开菜单面板
     LaunchedEffect(showWidgetDialog) {
@@ -279,20 +287,48 @@ fun ScheduleScreen(
                     )
                 }
                 // 点今天日期 → 快速返回当前周（今天所在周）
-                Text(
-                    todayDateText(),
-                    style = MaterialTheme.typography.bodySmall,
-                    color = MaterialTheme.colorScheme.onSurfaceVariant,
-                    modifier = Modifier
-                        .clip(RoundedCornerShape(6.dp))
-                        .clickable {
-                            val todayWeek = Repo.weekOf(st, LocalDate.now()) ?: week
-                            if (todayWeek != week) {
-                                Repo.updateSettings { it.copy(currentWeek = todayWeek) }
+                Row(verticalAlignment = Alignment.CenterVertically) {
+                    Text(
+                        todayDateText(),
+                        style = MaterialTheme.typography.bodySmall,
+                        color = MaterialTheme.colorScheme.onSurfaceVariant,
+                        modifier = Modifier
+                            .clip(RoundedCornerShape(6.dp))
+                            .clickable {
+                                val todayWeek = Repo.weekOf(st, LocalDate.now()) ?: week
+                                if (todayWeek != week) {
+                                    Repo.updateSettings { it.copy(currentWeek = todayWeek) }
+                                }
                             }
-                        }
-                        .padding(horizontal = 4.dp, vertical = 2.dp)
-                )
+                            .padding(horizontal = 4.dp, vertical = 2.dp)
+                    )
+                    // 翻到了别的周：给一个显眼的「回本周」，不用去点小字日期
+                    val realWeek = Repo.weekOf(st, LocalDate.now())
+                    if (realWeek != null && realWeek != shownWeek) {
+                        Text(
+                            "回本周",
+                            style = MaterialTheme.typography.labelSmall,
+                            color = MaterialTheme.colorScheme.primary,
+                            modifier = Modifier
+                                .padding(start = 6.dp)
+                                .clip(RoundedCornerShape(6.dp))
+                                .background(MaterialTheme.colorScheme.primary.copy(alpha = 0.10f))
+                                .clickable {
+                                    Repo.updateSettings { it.copy(currentWeek = realWeek) }
+                                    scope.launch {
+                                        pagerState.animateScrollToPage(
+                                            (realWeek - 1).coerceIn(0, maxWeek - 1)
+                                        )
+                                    }
+                                }
+                                .padding(horizontal = 6.dp, vertical = 2.dp)
+                        )
+                    }
+                }
+            }
+
+            IconButton(onClick = { showSearch = true }) {
+                Icon(Icons.Default.Search, contentDescription = "搜索课程")
             }
 
             Box {
@@ -310,6 +346,22 @@ fun ScheduleScreen(
         }
 
         // ---------- 课表网格（左右滑动切换周） ----------
+        if (showSearch) {
+            CourseSearchDialog(
+                st = st,
+                onDismiss = { showSearch = false },
+                onPick = { shown, targetWeek ->
+                    showSearch = false
+                    detail = shown
+                    // 跳到这门课开课的周次，同时把课程详情打开
+                    scope.launch {
+                        pagerState.animateScrollToPage(
+                            (targetWeek - 1).coerceIn(0, maxWeek - 1)
+                        )
+                    }
+                }
+            )
+        }
         HorizontalPager(
             state = pagerState,
             modifier = Modifier.fillMaxSize(),
@@ -428,6 +480,7 @@ fun ScheduleScreen(
                     WidgetPinRow("今日课程 · 4×4", TodayLargeWidget::class.java) { addingWidget = false }
                     WidgetPinRow("今日课程 · 4×2", TodayWideWidget::class.java) { addingWidget = false }
                     WidgetPinRow("今日 · 明日 · 4×4", TodayTomorrowWidget::class.java) { addingWidget = false }
+                    WidgetPinRow("本周课表 · 4×4", WeekTimetableWidget::class.java) { addingWidget = false }
                 }
             },
             confirmButton = {
@@ -519,9 +572,108 @@ private fun quickMoveCourse(st: AppState, week: Int, item: ShownCourse, targetDa
 private fun dayLabel(day: Int): String =
     listOf("周一", "周二", "周三", "周四", "周五", "周六", "周日").getOrElse(day - 1) { "" }
 
+/**
+ * 课程搜索：按课程名 / 老师 / 教室匹配当前课表的安排，
+ * 点结果跳到该课开课的周次并直接打开课程详情。
+ */
+@Composable
+private fun CourseSearchDialog(
+    st: AppState,
+    onDismiss: () -> Unit,
+    onPick: (ShownCourse, Int) -> Unit
+) {
+    var query by remember { mutableStateOf("") }
+    val q = query.trim()
+    val results = remember(q, st) {
+        if (q.isEmpty()) emptyList()
+        else st.details.filter { d ->
+            if (d.tableId != st.currentTableId) return@filter false
+            val c = st.courses.firstOrNull { it.id == d.courseId } ?: return@filter false
+            c.name.contains(q, ignoreCase = true) ||
+                d.teacher.contains(q, ignoreCase = true) ||
+                d.room.contains(q, ignoreCase = true)
+        }.mapNotNull { d ->
+            st.courses.firstOrNull { it.id == d.courseId }?.let { c -> ShownCourse(d, c, false, null) }
+        }
+    }
+    Dialog(onDismissRequest = onDismiss) {
+        Surface(
+            shape = RoundedCornerShape(22.dp),
+            tonalElevation = 6.dp,
+            color = MaterialTheme.colorScheme.surface
+        ) {
+            Column(
+                Modifier
+                    .fillMaxWidth()
+                    .padding(16.dp)
+            ) {
+                OutlinedTextField(
+                    value = query,
+                    onValueChange = { query = it },
+                    singleLine = true,
+                    label = { Text("搜索课程") },
+                    placeholder = { Text("课程名 / 老师 / 教室") },
+                    leadingIcon = { Icon(Icons.Default.Search, contentDescription = null) },
+                    modifier = Modifier.fillMaxWidth()
+                )
+                Spacer(Modifier.height(10.dp))
+                when {
+                    q.isEmpty() -> Text(
+                        "输入关键字，找出这门课排在哪几天",
+                        style = MaterialTheme.typography.bodySmall,
+                        color = MaterialTheme.colorScheme.onSurfaceVariant
+                    )
+                    results.isEmpty() -> Text(
+                        "没找到相关课程",
+                        style = MaterialTheme.typography.bodySmall,
+                        color = MaterialTheme.colorScheme.onSurfaceVariant
+                    )
+                    else -> LazyColumn(Modifier.heightIn(max = 380.dp)) {
+                        items(results, key = { it.detail.id }) { shown ->
+                            val d = shown.detail
+                            Row(
+                                Modifier
+                                    .fillMaxWidth()
+                                    .clip(RoundedCornerShape(12.dp))
+                                    .clickable { onPick(shown, d.startWeek) }
+                                    .padding(horizontal = 6.dp, vertical = 10.dp),
+                                verticalAlignment = Alignment.CenterVertically
+                            ) {
+                                Box(
+                                    Modifier
+                                        .size(10.dp)
+                                        .clip(RoundedCornerShape(5.dp))
+                                        .background(courseColor(shown.course.color))
+                                )
+                                Column(
+                                    Modifier
+                                        .weight(1f)
+                                        .padding(start = 10.dp)
+                                ) {
+                                    Text(shown.course.name, style = MaterialTheme.typography.bodyLarge)
+                                    Text(
+                                        listOf(
+                                            dayLabel(d.day),
+                                            "第${d.startNode}节起",
+                                            d.teacher,
+                                            d.room,
+                                            "第${d.startWeek}-${d.endWeek}周"
+                                        ).filter { it.isNotBlank() }.joinToString(" · "),
+                                        style = MaterialTheme.typography.bodySmall,
+                                        color = MaterialTheme.colorScheme.onSurfaceVariant
+                                    )
+                                }
+                            }
+                        }
+                    }
+                }
+            }
+        }
+    }
+}
+
 /** 顶栏副标题：今天日期（如 10月19日 周一） */
-private fun todayDateText(): String {
-    val today = LocalDate.now()
+private fun todayDateText(): String {    val today = LocalDate.now()
     val names = listOf("周一", "周二", "周三", "周四", "周五", "周六", "周日")
     return "${today.monthValue}月${today.dayOfMonth}日 ${names[today.dayOfWeek.value - 1]}"
 }
@@ -1688,7 +1840,8 @@ fun MoreMenu(
                     .padding(vertical = 10.dp),
                 horizontalArrangement = Arrangement.spacedBy(10.dp)
             ) {
-                st.tables.forEach { table ->
+                // 归档的旧学期不在切换器里出现
+                st.tables.filterNot { it.archived }.forEach { table ->
                     TableThumb(
                         table = table,
                         selected = table.id == st.currentTableId,

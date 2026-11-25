@@ -11,11 +11,13 @@ import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.PaddingValues
 import androidx.compose.foundation.layout.Row
+import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
+import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.shape.RoundedCornerShape
@@ -24,6 +26,7 @@ import androidx.compose.material.icons.automirrored.filled.ArrowBack
 import androidx.compose.material.icons.filled.Add
 import androidx.compose.material.icons.filled.Delete
 import androidx.compose.material.icons.filled.Edit
+import androidx.compose.material.icons.filled.History
 import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.FloatingActionButton
@@ -64,6 +67,7 @@ import com.anon.schedule.data.Repo
 import com.anon.schedule.data.TableBean
 import com.anon.schedule.data.tableSettings
 import com.anon.schedule.ui.common.courseColor
+import java.time.LocalDate
 import kotlin.math.roundToInt
 
 private val ThumbHeight = 118.dp
@@ -80,7 +84,11 @@ fun TableManageScreen(
 ) {
     val st by Repo.state.collectAsState()
     val context = LocalContext.current
+    // 归档的旧学期不在主列表里，单独沉到最下面的「已归档学期」
+    val active = st.tables.filterNot { it.archived }
+    val archived = st.tables.filter { it.archived }
     var showCreate by remember { mutableStateOf(false) }
+    var showRollover by remember { mutableStateOf(false) }
     var deleteTarget by remember { mutableStateOf<TableBean?>(null) }
 
     val itemHeightPx = with(LocalDensity.current) { (ThumbHeight + BarHeight + CardGap).toPx() }
@@ -116,17 +124,32 @@ fun TableManageScreen(
             verticalArrangement = Arrangement.spacedBy(CardGap)
         ) {
             item {
-                Text(
-                    "点击卡片查看该课表的课程\n长按拖动排序",
-                    textAlign = TextAlign.Center,
-                    color = MaterialTheme.colorScheme.onSurfaceVariant,
-                    style = MaterialTheme.typography.bodyMedium,
-                    modifier = Modifier
-                        .fillMaxWidth()
-                        .padding(vertical = 12.dp)
-                )
+                Column(Modifier.fillMaxWidth()) {
+                    Text(
+                        "点击卡片查看该课表的课程\n长按拖动排序",
+                        textAlign = TextAlign.Center,
+                        color = MaterialTheme.colorScheme.onSurfaceVariant,
+                        style = MaterialTheme.typography.bodyMedium,
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .padding(top = 12.dp, bottom = 4.dp)
+                    )
+                    // 学期结束：归档当前课表并按样式新建一张空课表
+                    Row(
+                        Modifier
+                            .fillMaxWidth()
+                            .padding(bottom = 4.dp),
+                        horizontalArrangement = Arrangement.Center
+                    ) {
+                        TextButton(onClick = { showRollover = true }) {
+                            Icon(Icons.Default.History, contentDescription = null, modifier = Modifier.size(18.dp))
+                            Spacer(Modifier.width(6.dp))
+                            Text("结束本学期并新建")
+                        }
+                    }
+                }
             }
-            items(st.tables, key = { it.id }) { table ->
+            items(active, key = { it.id }) { table ->
                 TableCard(
                     table = table,
                     modifier = Modifier
@@ -145,17 +168,18 @@ fun TableManageScreen(
                                 onDrag = { change, amount ->
                                     change.consume()
                                     dragOffset += amount.y
-                                    val list = Repo.state.value.tables
+                                    // 只排未归档的课表；归档的旧学期固定沉在列表末尾
+                                    val list = Repo.state.value.tables.filterNot { it.archived }
                                     val from = list.indexOfFirst { it.id == dragId }
                                     if (from >= 0) {
                                         val to = (from + (dragOffset / itemHeightPx).roundToInt())
                                             .coerceIn(0, list.lastIndex)
                                         if (to != from) {
                                             Repo.update { s ->
-                                                s.copy(tables = s.tables.toMutableList().also {
-                                                    val moved = it.removeAt(from)
-                                                    it.add(to, moved)
-                                                })
+                                                val act = s.tables.filterNot { it.archived }.toMutableList()
+                                                val arch = s.tables.filter { it.archived }
+                                                act.add(to, act.removeAt(from))
+                                                s.copy(tables = act + arch)
                                             }
                                             dragOffset -= (to - from) * itemHeightPx
                                         }
@@ -166,13 +190,38 @@ fun TableManageScreen(
                     onClick = { onOpenCourses(table.id) },
                     onEdit = { onEdit(table.id) },
                     onDelete = {
-                        if (st.tables.size <= 1) {
+                        if (active.size <= 1) {
                             Toast.makeText(context, "至少要保留一张课表哦～", Toast.LENGTH_SHORT).show()
                         } else {
                             deleteTarget = table
                         }
                     }
                 )
+            }
+            if (archived.isNotEmpty()) {
+                item {
+                    Text(
+                        "已归档学期",
+                        style = MaterialTheme.typography.labelLarge,
+                        fontWeight = FontWeight.SemiBold,
+                        color = MaterialTheme.colorScheme.onSurfaceVariant,
+                        modifier = Modifier.padding(start = 4.dp, top = 18.dp, bottom = 2.dp)
+                    )
+                }
+                items(archived, key = { it.id }) { table ->
+                    ArchivedRow(
+                        table = table,
+                        courseCount = st.details.count { it.tableId == table.id },
+                        onRestore = {
+                            Repo.update { s ->
+                                s.copy(tables = s.tables.map {
+                                    if (it.id == table.id) it.copy(archived = false, semesterName = "") else it
+                                })
+                            }
+                        },
+                        onDelete = { deleteTarget = table }
+                    )
+                }
             }
         }
     }
@@ -210,6 +259,73 @@ fun TableManageScreen(
         )
     }
 
+    if (showRollover) {
+        var semesterName by remember { mutableStateOf("") }
+        var newName by remember { mutableStateOf("新学期课表") }
+        AlertDialog(
+            onDismissRequest = { showRollover = false },
+            title = { Text("结束本学期") },
+            text = {
+                Column {
+                    Text(
+                        "当前课表会归档保存（课程与设置都不动），新学期按现在的样式新建一张空课表。",
+                        style = MaterialTheme.typography.bodySmall,
+                        color = MaterialTheme.colorScheme.onSurfaceVariant
+                    )
+                    Spacer(Modifier.height(10.dp))
+                    OutlinedTextField(
+                        value = semesterName,
+                        onValueChange = { semesterName = it },
+                        singleLine = true,
+                        label = { Text("学期名称（如 2025 秋季）") },
+                        modifier = Modifier.fillMaxWidth()
+                    )
+                    Spacer(Modifier.height(8.dp))
+                    OutlinedTextField(
+                        value = newName,
+                        onValueChange = { newName = it },
+                        singleLine = true,
+                        label = { Text("新学期的课表名称") },
+                        modifier = Modifier.fillMaxWidth()
+                    )
+                }
+            },
+            confirmButton = {
+                TextButton(onClick = {
+                    val stNow = Repo.state.value
+                    val oldTable = stNow.tables.firstOrNull { it.id == stNow.currentTableId }
+                    if (oldTable != null) {
+                        // 把当前生效的配置固化到旧课表上：以后改全局默认不会影响归档学期的显示
+                        val eff = stNow.tableSettings(oldTable.id)
+                        val today = LocalDate.now()
+                        val monday = today.minusDays((today.dayOfWeek.value - 1).toLong())
+                        val newId = Repo.nextId()
+                        val sem = semesterName.ifBlank { "未命名学期" }
+                        val newTable = TableBean(
+                            id = newId,
+                            name = newName.ifBlank { "新学期课表" },
+                            settings = eff.copy(startDate = monday.toEpochDay(), currentWeek = 1)
+                        )
+                        Repo.update { s ->
+                            s.copy(
+                                tables = s.tables.map {
+                                    if (it.id == oldTable.id)
+                                        it.copy(settings = eff, archived = true, semesterName = sem)
+                                    else it
+                                } + newTable,
+                                currentTableId = newId
+                            )
+                        }
+                    }
+                    showRollover = false
+                }) { Text("归档并新建") }
+            },
+            dismissButton = {
+                TextButton(onClick = { showRollover = false }) { Text("取消") }
+            }
+        )
+    }
+
     deleteTarget?.let { target ->
         AlertDialog(
             onDismissRequest = { deleteTarget = null },
@@ -219,14 +335,26 @@ fun TableManageScreen(
                 TextButton(onClick = {
                     Repo.update { s ->
                         val rest = s.tables.filter { it.id != target.id }
-                        val newTables = rest.ifEmpty { listOf(TableBean()) }
-                        val cur =
-                            if (s.currentTableId == target.id) newTables.first().id else s.currentTableId
+                        var newTables = rest
+                        var cur = s.currentTableId
+                        // 删的是当前课表：优先切到另一张未归档的；只剩归档时就新建一张空课表
+                        if (s.currentTableId == target.id) {
+                            val firstActive = rest.firstOrNull { !it.archived }
+                            if (firstActive != null) {
+                                cur = firstActive.id
+                            } else {
+                                val fresh = TableBean()
+                                newTables = rest + fresh
+                                cur = fresh.id
+                            }
+                        }
+                        if (newTables.isEmpty()) newTables = listOf(TableBean())
                         s.copy(
                             tables = newTables,
                             currentTableId = cur,
                             courses = s.courses.filter { it.tableId != target.id },
-                            details = s.details.filter { it.tableId != target.id }
+                            details = s.details.filter { it.tableId != target.id },
+                            todos = s.todos.filter { t -> s.courses.none { it.id == t.courseId && it.tableId == target.id } }
                         )
                     }
                     deleteTarget = null
@@ -236,6 +364,50 @@ fun TableManageScreen(
                 TextButton(onClick = { deleteTarget = null }) { Text("取消") }
             }
         )
+    }
+}
+
+/** 已归档学期：学期名 + 课程数 + 恢复 / 删除 */
+@Composable
+private fun ArchivedRow(
+    table: TableBean,
+    courseCount: Int,
+    onRestore: () -> Unit,
+    onDelete: () -> Unit
+) {
+    Row(
+        Modifier
+            .fillMaxWidth()
+            .clip(RoundedCornerShape(14.dp))
+            .background(MaterialTheme.colorScheme.surfaceContainerHigh.copy(alpha = 0.6f))
+            .padding(start = 16.dp, end = 4.dp, top = 4.dp, bottom = 4.dp),
+        verticalAlignment = Alignment.CenterVertically
+    ) {
+        Column(Modifier.weight(1f)) {
+            Text(
+                table.semesterName.ifBlank { "已归档学期" },
+                style = MaterialTheme.typography.bodyLarge,
+                fontWeight = FontWeight.SemiBold,
+                maxLines = 1,
+                overflow = TextOverflow.Ellipsis
+            )
+            Text(
+                "${table.name} · $courseCount 门课",
+                style = MaterialTheme.typography.bodySmall,
+                color = MaterialTheme.colorScheme.onSurfaceVariant,
+                maxLines = 1,
+                overflow = TextOverflow.Ellipsis
+            )
+        }
+        TextButton(onClick = onRestore) { Text("恢复") }
+        IconButton(onClick = onDelete) {
+            Icon(
+                Icons.Default.Delete,
+                contentDescription = "删除归档",
+                tint = MaterialTheme.colorScheme.error,
+                modifier = Modifier.size(20.dp)
+            )
+        }
     }
 }
 

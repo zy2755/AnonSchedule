@@ -12,10 +12,10 @@ import android.content.pm.PackageManager
  * 这里的 alias 名字必须和 AndroidManifest.xml 里的一致。
  */
 enum class AppIcon(val id: Int, val alias: String, val label: String, val desc: String) {
-    Default(0, "LauncherDefault", "原版插画", "天空与课程表插画（默认）"),
-    Sky(1, "LauncherSky", "天空蓝", "蓝底课程表卡片"),
-    Mint(2, "LauncherMint", "薄荷绿", "绿底课程表卡片"),
-    Amber(3, "LauncherAmber", "暖橙", "橙底课程表卡片");
+    Default(0, "LauncherDefault", "粉蓝渐变", "粉蓝渐变课程表（默认）"),
+    Sky(1, "LauncherSky", "海盐蓝", "蓝绿渐变课程表"),
+    Mint(2, "LauncherMint", "丁香拼贴", "淡紫底与彩色功能块"),
+    Amber(3, "LauncherAmber", "暖橙书香", "橙调书本与日历");
 
     fun component(context: Context): ComponentName =
         ComponentName(context.packageName, "${context.packageName}.$alias")

@@ -245,6 +245,8 @@ private fun DayDetailCard(st: AppState, date: LocalDate, courses: List<ShownCour
     // 当天课程挂着的待办：直接点名「哪门课的什么事」
     val courseIds = courses.map { it.course.id }.toSet()
     val todos = st.todos.filter { !it.done && it.courseId in courseIds }
+    // 当天截止的独立待办（DDL 清单）
+    val dueTodos = st.todos.filter { !it.done && it.dueDate > 0L && it.dueDate == date.toEpochDay() }
 
     GlassCard(Modifier.fillMaxWidth()) {
         Row(verticalAlignment = Alignment.CenterVertically) {
@@ -278,6 +280,34 @@ private fun DayDetailCard(st: AppState, date: LocalDate, courses: List<ShownCour
                     HorizontalDivider(
                         color = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.08f),
                         modifier = Modifier.padding(start = 12.dp)
+                    )
+                }
+            }
+        }
+        if (dueTodos.isNotEmpty()) {
+            Spacer(Modifier.height(10.dp))
+            Text(
+                "当天截止",
+                style = MaterialTheme.typography.labelMedium,
+                fontWeight = FontWeight.SemiBold,
+                color = MaterialTheme.colorScheme.error
+            )
+            Spacer(Modifier.height(2.dp))
+            dueTodos.forEach { todo ->
+                Row(
+                    Modifier.padding(vertical = 3.dp),
+                    verticalAlignment = Alignment.Top
+                ) {
+                    Text(
+                        "·",
+                        style = MaterialTheme.typography.bodyMedium,
+                        color = MaterialTheme.colorScheme.error
+                    )
+                    Text(
+                        (if (todo.dueMinute >= 0)
+                            "%02d:%02d ".format(todo.dueMinute / 60, todo.dueMinute % 60) else "") + todo.text,
+                        style = MaterialTheme.typography.bodySmall,
+                        modifier = Modifier.padding(start = 6.dp)
                     )
                 }
             }

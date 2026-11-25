@@ -41,10 +41,12 @@ import androidx.compose.ui.text.style.TextDecoration
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import com.anon.schedule.data.CourseLogic
+import com.anon.schedule.data.CourseTodo
 import com.anon.schedule.data.DetailBean
 import com.anon.schedule.data.Repo
 import com.anon.schedule.data.ShownCourse
 import com.anon.schedule.data.TimeSlot
+import com.anon.schedule.data.TodoLogic
 import com.anon.schedule.data.tableSettings
 import com.anon.schedule.ui.common.GlassCard
 import com.anon.schedule.ui.common.courseColor
@@ -54,7 +56,7 @@ import java.time.format.DateTimeFormatter
 import kotlinx.coroutines.delay
 
 @Composable
-fun TodayScreen() {
+fun TodayScreen(onOpenTodos: () -> Unit = {}) {
     val st by Repo.state.collectAsState()
     val s = st.tableSettings()
     val today = LocalDate.now()
@@ -125,6 +127,16 @@ fun TodayScreen() {
         item { TodayHero(overview, tomorrowFirst, st.slots) }
 
         item { WeekOverviewCard(weekStats) }
+
+        item {
+            val preview = TodoLogic.preview(st.todos, today, now)
+            TodoCard(
+                items = preview,
+                pending = TodoLogic.pendingCount(st.todos),
+                today = today,
+                onOpen = onOpenTodos
+            )
+        }
 
         if (dayCourses.isNotEmpty()) {
             item {
@@ -325,6 +337,73 @@ private fun WeekOverviewCard(stats: CourseLogic.WeekStats) {
                 fontWeight = FontWeight.Bold,
                 color = accent
             )
+        }
+    }
+}
+
+// ---------- 待办卡片 ----------
+
+/** 今日页的待办入口：最近 3 条未完成，点卡片进待办清单 */
+@Composable
+private fun TodoCard(
+    items: List<CourseTodo>,
+    pending: Int,
+    today: LocalDate,
+    onOpen: () -> Unit
+) {
+    val muted = MaterialTheme.colorScheme.onSurfaceVariant
+    val accent = MaterialTheme.colorScheme.primary
+    GlassCard(Modifier.fillMaxWidth(), onClick = onOpen) {
+        Row(verticalAlignment = Alignment.CenterVertically) {
+            Text(
+                "待办",
+                style = MaterialTheme.typography.titleSmall,
+                fontWeight = FontWeight.SemiBold
+            )
+            Spacer(Modifier.weight(1f))
+            Text(
+                if (pending > 0) "$pending 条未完成" else "全部完成",
+                style = MaterialTheme.typography.labelMedium,
+                color = if (pending > 0) accent else muted
+            )
+        }
+        Spacer(Modifier.height(8.dp))
+        if (items.isEmpty()) {
+            Text(
+                "还没有待办，点这里加一条 DDL 吧",
+                style = MaterialTheme.typography.bodySmall,
+                color = muted
+            )
+        } else {
+            items.forEach { todo ->
+                val overdue = TodoLogic.isOverdue(todo, today, LocalTime.now())
+                Row(
+                    Modifier
+                        .fillMaxWidth()
+                        .padding(vertical = 4.dp),
+                    verticalAlignment = Alignment.CenterVertically
+                ) {
+                    Box(
+                        Modifier
+                            .size(6.dp)
+                            .clip(RoundedCornerShape(3.dp))
+                            .background(if (overdue) MaterialTheme.colorScheme.error else accent)
+                    )
+                    Text(
+                        todo.text,
+                        style = MaterialTheme.typography.bodyMedium,
+                        maxLines = 1,
+                        modifier = Modifier
+                            .weight(1f)
+                            .padding(start = 8.dp)
+                    )
+                    Text(
+                        TodoLogic.dueLabel(todo, today),
+                        fontSize = 11.sp,
+                        color = if (overdue) MaterialTheme.colorScheme.error else muted
+                    )
+                }
+            }
         }
     }
 }

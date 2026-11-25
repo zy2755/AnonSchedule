@@ -1,9 +1,11 @@
 package com.anon.schedule.data
 
+import java.time.Instant
 import java.time.LocalDateTime
+import java.time.ZoneId
 
 /**
- * 学习通作业 / 考试 → 待办清单的自动同步。
+ * 学习通作业 / 考试 / AI实践 → 待办清单的自动同步。
  *
  * 每次刷新学习通任务时调用 [merge]：未完成的任务自动补进待办，已完成的任务把对应待办勾掉；
  * 用 [CourseTodo.sourceKey] 去重，反复刷新不会产生重复条目。
@@ -14,16 +16,27 @@ object ChaoxingTodoSync {
     data class Remote(
         val title: String,
         val course: String,
-        val type: String,      // "work" / "exam"
+        val type: String,      // "work" / "exam" / "ai"
         val url: String,
         val remain: String,    // 「剩余1天2小时30分钟」原文
-        val finished: Boolean
+        val finished: Boolean,
+        val endTime: Long = 0L, // 截止时间戳（毫秒），「AI实践」接口直接给，优先用它
+        val key: String = ""    // 额外去重键：任务 id 之类比链接更稳定的标识
     )
 
-    /** 去重用的稳定 key：优先用任务链接，没有链接时退回「类型+课程+标题」 */
-    fun keyOf(r: Remote): String =
-        if (r.url.isNotBlank()) "${r.type}|${r.url.trim()}"
-        else "${r.type}|${r.course.trim()}|${r.title.trim()}"
+    /** 去重用的稳定 key：任务 id > 任务链接 > 「类型+课程+标题」 */
+    fun keyOf(r: Remote): String = when {
+        r.key.isNotBlank() -> "${r.type}|${r.key.trim()}"
+        r.url.isNotBlank() -> "${r.type}|${r.url.trim()}"
+        else -> "${r.type}|${r.course.trim()}|${r.title.trim()}"
+    }
+
+    /** 截止时间戳（毫秒）→ (截止日期 epochDay, 当天第几分钟)；没有时间戳返回 null */
+    fun dueOfEnd(endTime: Long): Pair<Long, Int>? {
+        if (endTime <= 0L) return null
+        val due = Instant.ofEpochMilli(endTime).atZone(ZoneId.systemDefault())
+        return due.toLocalDate().toEpochDay() to due.hour * 60 + due.minute
+    }
 
     /** 「剩余…」→ (截止日期 epochDay, 当天第几分钟)；没有可用的剩余时间返回 null */
     fun dueOf(remain: String, now: LocalDateTime): Pair<Long, Int>? {
@@ -53,7 +66,7 @@ object ChaoxingTodoSync {
             val existing = list.firstOrNull { it.sourceKey == key }
             if (existing == null) {
                 if (item.finished) continue
-                val due = dueOf(item.remain, now)
+                val due = dueOfEnd(item.endTime) ?: dueOf(item.remain, now)
                 val courseId = courseIdOf(item.course)
                 list = list + CourseTodo(
                     id = idFactory(),
@@ -64,11 +77,15 @@ object ChaoxingTodoSync {
                     createdAt = System.currentTimeMillis(),
                     dueDate = due?.first ?: 0L,
                     dueMinute = due?.second ?: -1,
-                    source = if (item.type == "exam") "cx_exam" else "cx_work",
+                    source = when (item.type) {
+                        "exam" -> "cx_exam"
+                        "ai" -> "cx_ai"
+                        else -> "cx_work"
+                    },
                     sourceKey = key
                 )
             } else {
-                val due = dueOf(item.remain, now)
+                val due = dueOfEnd(item.endTime) ?: dueOf(item.remain, now)
                 val patched = existing.copy(
                     done = existing.done || item.finished,
                     dueDate = if (existing.done || due == null) existing.dueDate else due.first,

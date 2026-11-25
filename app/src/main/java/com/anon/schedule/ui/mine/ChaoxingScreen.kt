@@ -134,7 +134,10 @@ private const val CX_FETCH_JS = """
       if (!courses[k]) { courses[k] = {cid: m1[1], cls: m2[1], name: course}; order.push(k); }
     }
   }
-  if (!order.length) { push({ok:true, works:works, exams:[]}); return; }
+  if (!order.length) {
+    loadCourses(function (cs) { push({ok: true, works: works, exams: [], courses: cs}); });
+    return;
+  }
   var tasks = order.map(function (k) {
     var c = courses[k];
     var u = location.origin + '/mooc-ans/exam/phone/task-list?courseId=' + c.cid +
@@ -161,10 +164,98 @@ private const val CX_FETCH_JS = """
   Promise.all(tasks).then(function (groups) {
     var exams = [];
     for (var i = 0; i < groups.length; i++) exams = exams.concat(groups[i]);
-    push({ok: true, works: works, exams: exams});
+    loadCourses(function (cs) {
+      push({ok: true, works: works, exams: exams, courses: cs});
+    });
   });
+  /**
+   * 全量课程表（含没有作业的课）：「AI实践」是按课程维度查的，
+   * 只靠作业链接反推会漏掉没布置作业的课程。
+   */
+  function loadCourses(cb) {
+    fetch('/mycourse/backclazzdata?view=json&rss=1', {credentials: 'include'})
+      .then(function (r) { return r.text(); })
+      .then(function (t) {
+        var out = [];
+        try {
+          var ch = (JSON.parse(t).channelList) || [];
+          for (var i = 0; i < ch.length; i++) {
+            var c = ch[i] || {}, ct = c.content || {};
+            var cd = (ct.course && ct.course.data && ct.course.data[0]) || {};
+            var cid = cd.id, cls = ct.id || c.id, cpi = ct.cpi || c.cpi, fid = cd.belongSchoolId || '';
+            if (!cid || !cls) continue;
+            out.push({cid: String(cid), cls: String(cls), cpi: String(cpi || ''),
+                      fid: String(fid || ''), name: cd.name || ''});
+          }
+        } catch (e) {}
+        cb(out);
+      })
+      .catch(function () { cb([]); });
+  }
 })();
 """
+
+/**
+ * 一条待查「AI实践」的课程。courseId / classId / cpi 是接口必填参数，
+ * fid（学校 id）能拿到就带上，兼容性更好。
+ */
+private data class CxCourse(
+    val cid: String,
+    val cls: String,
+    val cpi: String,
+    val fid: String,
+    val name: String
+)
+
+/**
+ * 在 mobilelearn 域的页面里并发查询各课程的「AI实践」（activeType=77）。
+ * 必须在这个域执行：跨域 fetch 会被 CORS 拦掉。
+ */
+private fun activeFetchJs(courses: List<CxCourse>): String {
+    val arr = JSONArray()
+    courses.forEach {
+        arr.put(
+            JSONObject()
+                .put("cid", it.cid)
+                .put("cls", it.cls)
+                .put("cpi", it.cpi)
+                .put("fid", it.fid)
+                .put("name", it.name)
+        )
+    }
+    return """
+(function () {
+  var courses = $arr;
+  function push(o) { try { window.cx_obj.push(JSON.stringify(o)); } catch (e) {} }
+  var out = [];
+  function one(c) {
+    var u = '/v2/apis/active/student/activelist?courseId=' + c.cid + '&classId=' + c.cls +
+            '&cpi=' + c.cpi + '&ut=s&t=' + Date.now() + (c.fid ? '&fid=' + c.fid : '');
+    return fetch(u, {credentials: 'include'}).then(function (r) { return r.json(); }).then(function (j) {
+      if (!j || j.result !== 1 || !j.data) return;
+      var list = j.data.activeList || [];
+      for (var k = 0; k < list.length; k++) {
+        var a = list[k];
+        if (a.activeType != 77) continue;
+        var stu = '';
+        try { stu = JSON.parse(a.content || '{}').stuUrl || ''; } catch (e) {}
+        out.push({
+          id: String(a.id), title: a.nameOne || '', course: c.name,
+          status: a.status, remain: a.nameFour || '', endTime: a.endTime || 0, url: stu
+        });
+      }
+    }).catch(function () {});
+  }
+  // 每批 6 门课并发，避免几十个请求同时打过去
+  function run(start) {
+    return Promise.all(courses.slice(start, start + 6).map(one)).then(function () {
+      if (start + 6 < courses.length) return run(start + 6);
+    });
+  }
+  run(0).then(function () { push({ok: true, actives: out}); });
+})();
+"""
+}
 
 /**
  * 学习通 H5 会把「开始答题 / 开始考试」等跳转交给原生：jsBridge.postNotification('CLIENT_OPEN_URL', ...)。
@@ -523,14 +614,16 @@ private const val CX_PROBE_JS = """
 })();
 """
 
-/** 一条作业 / 考试 */
+/** 一条作业 / 考试 / AI实践 */
 private data class CxTask(
     val title: String,
     val course: String,
     val status: String,
     val remain: String,
     val url: String,
-    val type: String
+    val type: String,
+    val endTime: Long = 0L,
+    val key: String = ""
 )
 
 /**
@@ -553,6 +646,9 @@ fun ChaoxingScreen(onBack: () -> Unit) {
     var tab by remember { mutableIntStateOf(0) }
     var works by remember { mutableStateOf<List<CxTask>>(emptyList()) }
     var exams by remember { mutableStateOf<List<CxTask>>(emptyList()) }
+    // 进行中的「AI实践」（官方 App 的作业列表不收它们，这里单独一栏 + 同步进待办）
+    var actives by remember { mutableStateOf<List<CxTask>>(emptyList()) }
+    var courses by remember { mutableStateOf<List<CxCourse>>(emptyList()) }
     var status by remember { mutableStateOf("") }
     // 学习通提交成功后发 CLIENT_EXIT_LEVEL，用来收起作答页
     var exitWork by remember { mutableStateOf(false) }
@@ -719,7 +815,9 @@ fun ChaoxingScreen(onBack: () -> Unit) {
                 type = task.type,
                 url = task.url,
                 remain = task.remain,
-                finished = task.isFinished()
+                finished = task.isFinished(),
+                endTime = task.endTime,
+                key = task.key
             )
         }
         val merged = ChaoxingTodoSync.merge(
@@ -750,24 +848,47 @@ fun ChaoxingScreen(onBack: () -> Unit) {
             @JavascriptInterface
             fun push(json: String) {
                 ui {
-                    loading = false
                     try {
                         val o = JSONObject(json)
+                        if (o.has("actives")) {
+                            // 第二轮：各课程的「AI实践」查询结果
+                            val all = parseActives(o.optJSONArray("actives"))
+                            actives = all.filter { it.status != "已结束" }
+                            loading = false
+                            status = ""
+                            syncTodos(works + exams + all)
+                            return@ui
+                        }
                         if (!o.optBoolean("ok")) {
+                            loading = false
                             needLogin = true
+                            return@ui
+                        }
+                        val newWorks = parseTasks(o.optJSONArray("works"), "work")
+                        val newExams = parseTasks(o.optJSONArray("exams"), "exam")
+                        works = newWorks
+                        exams = newExams
+                        needLogin = false
+                        status = if (newWorks.isEmpty() && newExams.isEmpty()) {
+                            "没有读到任务，先确认学习通已登录好～"
+                        } else ""
+                        // 刷新就顺手同步待办：未完成的自动进待办
+                        syncTodos(newWorks + newExams)
+                        // 第一轮带回课程表：切到 mobilelearn 域继续查「AI实践」
+                        val cs = parseCourses(o.optJSONArray("courses"))
+                        courses = cs
+                        val first = cs.firstOrNull()
+                        if (first == null) {
+                            loading = false
                         } else {
-                            val newWorks = parseTasks(o.optJSONArray("works"), "work")
-                            val newExams = parseTasks(o.optJSONArray("exams"), "exam")
-                            works = newWorks
-                            exams = newExams
-                            needLogin = false
-                            status = if (newWorks.isEmpty() && newExams.isEmpty()) {
-                                "没有读到任务，先确认学习通已登录好～"
-                            } else ""
-                            // 刷新就顺手同步待办：未完成的自动进待办
-                            syncTodos(newWorks + newExams)
+                            status = "正在读取 AI实践…"
+                            webView?.loadUrl(
+                                "https://mobilelearn.chaoxing.com/page/active/stuActiveList" +
+                                    "?courseId=${first.cid}&classId=${first.cls}&cpi=${first.cpi}"
+                            )
                         }
                     } catch (e: Exception) {
+                        loading = false
                         status = "解析失败：${e.message}"
                     }
                 }
@@ -892,6 +1013,9 @@ fun ChaoxingScreen(onBack: () -> Unit) {
                         Tab(selected = tab == 1, onClick = { tab = 1 }) {
                             Text("考试 ${exams.size}", modifier = Modifier.padding(vertical = 12.dp))
                         }
+                        Tab(selected = tab == 2, onClick = { tab = 2 }) {
+                            Text("AI实践 ${actives.size}", modifier = Modifier.padding(vertical = 12.dp))
+                        }
                     }
                 }
 
@@ -919,11 +1043,21 @@ fun ChaoxingScreen(onBack: () -> Unit) {
                 }
 
                 if (!needLogin) {
-                    // 作业 / 考试同一套排序：未完成在前，剩余时间短的在前，已完成沉底
-                    val list = sortTasks(if (tab == 0) works else exams)
+                    // 作业 / 考试 / AI实践同一套排序：未完成在前，剩余时间短的在前，已完成沉底
+                    val list = sortTasks(
+                        when (tab) {
+                            1 -> exams
+                            2 -> actives
+                            else -> works
+                        }
+                    )
                     if (list.isEmpty() && !loading) {
                         Text(
-                            if (tab == 0) "暂无作业～" else "暂无考试～",
+                            when (tab) {
+                                1 -> "暂无考试～"
+                                2 -> "暂无 AI实践～"
+                                else -> "暂无作业～"
+                            },
                             style = MaterialTheme.typography.bodyMedium,
                             color = MaterialTheme.colorScheme.onSurfaceVariant,
                             modifier = Modifier.padding(16.dp)
@@ -1019,6 +1153,12 @@ fun ChaoxingScreen(onBack: () -> Unit) {
                                     u.contains("/work/stu-work") -> {
                                         ui { needLogin = false }
                                         view.evaluateJavascript(CX_FETCH_JS, null)
+                                    }
+                                    // mobilelearn 任务页：在这个域里并发查各课程的「AI实践」
+                                    u.contains("mobilelearn.chaoxing.com") && u.contains("/page/active") -> {
+                                        if (loading && courses.isNotEmpty()) {
+                                            view.evaluateJavascript(activeFetchJs(courses), null)
+                                        }
                                     }
                                     // 登录成功后的落地页：拿着新 Cookie 继续拉任务
                                     u.contains("i.chaoxing.com") || u.contains("passport") -> ui {
@@ -1152,6 +1292,50 @@ private fun parseTasks(arr: org.json.JSONArray?, type: String): List<CxTask> {
                 remain = o.optString("remain"),
                 url = o.optString("url"),
                 type = type
+            )
+        )
+    }
+    return out
+}
+
+/** 课程表 JSON 数组 → [CxCourse]；缺 courseId / classId 的条目丢掉 */
+private fun parseCourses(arr: JSONArray?): List<CxCourse> {
+    if (arr == null) return emptyList()
+    val out = ArrayList<CxCourse>(arr.length())
+    for (i in 0 until arr.length()) {
+        val o = arr.optJSONObject(i) ?: continue
+        val cid = o.optString("cid")
+        val cls = o.optString("cls")
+        if (cid.isEmpty() || cls.isEmpty()) continue
+        out.add(
+            CxCourse(
+                cid = cid,
+                cls = cls,
+                cpi = o.optString("cpi"),
+                fid = o.optString("fid"),
+                name = o.optString("name")
+            )
+        )
+    }
+    return out
+}
+
+/** 「AI实践」数组 → 卡片数据；status 1 进行中、2 已结束 */
+private fun parseActives(arr: JSONArray?): List<CxTask> {
+    if (arr == null) return emptyList()
+    val out = ArrayList<CxTask>(arr.length())
+    for (i in 0 until arr.length()) {
+        val o = arr.optJSONObject(i) ?: continue
+        out.add(
+            CxTask(
+                title = o.optString("title").ifBlank { "（AI实践）" },
+                course = o.optString("course").trim('《', '》'),
+                status = if (o.optInt("status") == 2) "已结束" else "进行中",
+                remain = o.optString("remain"),
+                url = o.optString("url"),
+                type = "ai",
+                endTime = o.optLong("endTime"),
+                key = o.optString("id").ifBlank { o.optString("url") }
             )
         )
     }

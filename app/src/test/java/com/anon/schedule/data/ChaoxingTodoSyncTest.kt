@@ -5,6 +5,7 @@ import org.junit.Assert.assertNull
 import org.junit.Assert.assertTrue
 import org.junit.Test
 import java.time.LocalDateTime
+import java.time.ZoneId
 
 /** 学习通任务 → 待办清单的自动同步规则 */
 class ChaoxingTodoSyncTest {
@@ -95,5 +96,47 @@ class ChaoxingTodoSyncTest {
         val due = ChaoxingTodoSync.dueOf("剩余0分钟", now)
         assertEquals(now.toLocalDate().toEpochDay(), due?.first)
         assertEquals(12 * 60, due?.second)
+    }
+
+    @Test
+    fun `AI实践优先用截止时间戳算截止日期`() {
+        val end = LocalDateTime.of(2026, 11, 29, 23, 59)
+            .atZone(ZoneId.systemDefault()).toInstant().toEpochMilli()
+        val out = merge(
+            items = listOf(
+                ChaoxingTodoSync.Remote(
+                    title = "思维导图",
+                    course = "习近平新时代中国特色社会主义思想概论",
+                    type = "ai",
+                    url = "",
+                    remain = "剩余:4天",
+                    finished = false,
+                    endTime = end,
+                    key = "6000183956429"
+                )
+            )
+        )
+        val t = out.first()
+        assertEquals("cx_ai", t.source)
+        assertEquals("ai|6000183956429", t.sourceKey)
+        assertEquals(LocalDateTime.of(2026, 11, 29, 0, 0).toLocalDate().toEpochDay(), t.dueDate)
+        assertEquals(23 * 60 + 59, t.dueMinute)
+    }
+
+    @Test
+    fun `AI实践链接变了但任务 id 不变时仍然只算一条`() {
+        fun ai(stuUrl: String) = ChaoxingTodoSync.Remote(
+            title = "思维导图",
+            course = "习近平新时代中国特色社会主义思想概论",
+            type = "ai",
+            url = stuUrl,
+            remain = "剩余:4天",
+            finished = false,
+            key = "6000183956429"
+        )
+        val once = merge(items = listOf(ai("https://mooc2-ans.chaoxing.com/a?publishUuid=1")))
+        val twice = merge(todos = once, items = listOf(ai("https://mooc2-ans.chaoxing.com/a?publishUuid=2")))
+        assertEquals(1, twice.size)
+        assertEquals(once.first().id, twice.first().id)
     }
 }

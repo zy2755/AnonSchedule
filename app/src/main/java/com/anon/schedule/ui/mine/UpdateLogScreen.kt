@@ -35,6 +35,19 @@ private data class UpdateEntry(val version: String, val days: List<UpdateDay>)
 /** 更新内容（新的在最上面；改动按版本归类，同一版本内再按日期分段） */
 private val updateEntries = listOf(
     UpdateEntry(
+        version = "1.4.2",
+        days = listOf(
+            UpdateDay(
+                date = "2026-11-25",
+                items = listOf(
+                    "学习通任务页新增「AI实践」一栏：作业列表里看不到的 AI实践（如思维导图、实践活动）也能在这里查看，点开直达作答页",
+                    "AI实践的截止时间按接口给的时间戳换算，自动同步进待办清单，结束后自动勾掉",
+                    "版本：升级到 1.4.2"
+                )
+            )
+        )
+    ),
+    UpdateEntry(
         version = "1.4.1",
         days = listOf(
             UpdateDay(

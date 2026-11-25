@@ -1180,7 +1180,8 @@ private fun DayHeader(
             color = if (isToday) MaterialTheme.colorScheme.onPrimary else baseColor
         )
         Text(
-            date?.let { "${it.dayOfMonth}" } ?: " ",
+            // 带上月份：翻到别的周时也能一眼看出是哪个月（对齐苏大云那种 11/23 的写法）
+            date?.let { "${it.monthValue}/${it.dayOfMonth}" } ?: " ",
             fontSize = (settings.headerTextSp - 3).coerceAtLeast(8).sp,
             lineHeight = (settings.headerTextSp - 1).coerceAtLeast(10).sp,
             fontWeight = FontWeight.Normal,

@@ -241,7 +241,8 @@ private fun activeFetchJs(courses: List<CxCourse>): String {
         try { stu = JSON.parse(a.content || '{}').stuUrl || ''; } catch (e) {}
         out.push({
           id: String(a.id), title: a.nameOne || '', course: c.name,
-          status: a.status, remain: a.nameFour || '', endTime: a.endTime || 0, url: stu
+          status: a.status, remain: a.nameFour || '', endTime: a.endTime || 0, url: stu,
+          cpi: c.cpi
         });
       }
     }).catch(function () {});
@@ -262,6 +263,55 @@ private fun activeFetchJs(courses: List<CxCourse>): String {
  * 普通 WebView 没有原生桥，消息会被 jsbridge:// 的隐藏 iframe 静默吞掉，点击就毫无反应。
  * 这里以 androidjsbridge 的名义接管，把它当成本地导航。
  */
+/** 一条待核对的「AI实践」：id 用于回填，url 是作答页，cpi 是 load-data 的必填参数 */
+private data class CxAiCheck(
+    val id: String,
+    val url: String,
+    val cpi: String
+)
+
+/**
+ * 在 mooc2-ans 域核对 AI实践 是否已作答（跨域 fetch 会被 CORS 拦，必须在这个域执行）：
+ *   1. 拉作答页 HTML，取出 publishRelationUuid（没作答过的页面没有这个字段，视为未完成）；
+ *   2. 调 load-data，answerCount>0 或 answerUuid 存在即视为已完成。
+ */
+private fun aiDoneFetchJs(checks: List<CxAiCheck>): String {
+    val arr = JSONArray()
+    checks.forEach {
+        arr.put(JSONObject().put("id", it.id).put("url", it.url).put("cpi", it.cpi))
+    }
+    return """
+(function () {
+  var items = $arr;
+  function push(o) { try { window.cx_obj.push(JSON.stringify(o)); } catch (e) {} }
+  var out = [];
+  function one(it) {
+    return fetch(it.url, {credentials: 'include'}).then(function (r) { return r.text(); }).then(function (h) {
+      var m = /([0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12})"\s+id="publishRelationUuid"/i.exec(h);
+      if (!m) { out.push({id: it.id, done: false, reason: 'no-relation'}); return; }
+      var cid = /(?:courseid|courseId)=(\d+)/.exec(it.url);
+      var cls = /(?:clazzid|classId)=(\d+)/.exec(it.url);
+      if (!cid || !cls) { out.push({id: it.id, done: false, reason: 'no-ids'}); return; }
+      var q = '/mooc2-ans/ai-evaluate/v2/answer/load-data?courseid=' + cid[1] +
+              '&cpi=' + (it.cpi || '') + '&clazzid=' + cls[1] + '&publishRelationUuid=' + m[1];
+      return fetch(q, {credentials: 'include'}).then(function (r) { return r.json(); }).then(function (j) {
+        var d = (j && j.data) || {};
+        var done = (d.answerCount || 0) > 0 || !!d.answerUuid;
+        out.push({id: it.id, done: done, cnt: d.answerCount || 0, uuid: d.answerUuid ? 'Y' : 'N'});
+      });
+    }).catch(function () { out.push({id: it.id, done: false, reason: 'err'}); });
+  }
+  // 每批 4 条并发，避免一次打太多请求
+  function run(start) {
+    return Promise.all(items.slice(start, start + 4).map(one)).then(function () {
+      if (start + 4 < items.length) return run(start + 4);
+    });
+  }
+  run(0).then(function () { push({ok: true, aiDone: out}); });
+})();
+"""
+}
+
 private class CxAppBridge(
     private val main: Handler,
     private val getWeb: () -> WebView?,
@@ -623,7 +673,8 @@ private data class CxTask(
     val url: String,
     val type: String,
     val endTime: Long = 0L,
-    val key: String = ""
+    val key: String = "",
+    val cpi: String = ""
 )
 
 /**
@@ -648,6 +699,10 @@ fun ChaoxingScreen(onBack: () -> Unit) {
     var exams by remember { mutableStateOf<List<CxTask>>(emptyList()) }
     // 进行中的「AI实践」（官方 App 的作业列表不收它们，这里单独一栏 + 同步进待办）
     var actives by remember { mutableStateOf<List<CxTask>>(emptyList()) }
+    // 全部「AI实践」含已结束，用于回填完成状态
+    var allActives by remember { mutableStateOf<List<CxTask>>(emptyList()) }
+    // 待核对的完成状态；非空时会把 WebView 导航到 mooc2-ans 域执行核对
+    var aiChecks by remember { mutableStateOf<List<CxAiCheck>>(emptyList()) }
     var courses by remember { mutableStateOf<List<CxCourse>>(emptyList()) }
     var status by remember { mutableStateOf("") }
     // 学习通提交成功后发 CLIENT_EXIT_LEVEL，用来收起作答页
@@ -853,10 +908,49 @@ fun ChaoxingScreen(onBack: () -> Unit) {
                         if (o.has("actives")) {
                             // 第二轮：各课程的「AI实践」查询结果
                             val all = parseActives(o.optJSONArray("actives"))
+                            allActives = all
                             actives = all.filter { it.status != "已结束" }
+                            val checks = actives.filter { it.url.isNotBlank() }
+                                .map { CxAiCheck(id = it.key, url = it.url, cpi = it.cpi) }
+                            aiChecks = checks
+                            if (checks.isEmpty()) {
+                                loading = false
+                                status = ""
+                                syncTodos(works + exams + all)
+                            } else {
+                                // 完成状态只能在 mooc2-ans 域查：借一张同域图片当跳板
+                                status = "正在核对 AI实践 完成状态…"
+                                webView?.loadUrl(
+                                    "https://mooc2-ans.chaoxing.com/mooc2-ans/ai-evaluate/images/ai-start-tit1.png"
+                                )
+                            }
+                            return@ui
+                        }
+                        if (o.has("aiDone")) {
+                            // 第三轮：逐条核对 AI实践 是否已作答
+                            val doneIds = HashSet<String>()
+                            o.optJSONArray("aiDone")?.let { arr ->
+                                for (i in 0 until arr.length()) {
+                                    val a = arr.optJSONObject(i) ?: continue
+                                    val id = a.optString("id")
+                                    val done = a.optBoolean("done")
+                                    Log.i(
+                                        CX_TAG,
+                                        "AI完成状态 id=$id done=$done cnt=${a.optInt("cnt", -1)} " +
+                                            "uuid=${a.optString("uuid")} ${a.optString("reason")}"
+                                    )
+                                    if (done && id.isNotEmpty()) doneIds.add(id)
+                                }
+                            }
+                            val updated = allActives.map {
+                                if (it.key in doneIds) it.copy(status = "已完成") else it
+                            }
+                            allActives = updated
+                            actives = updated.filter { it.status != "已结束" }
                             loading = false
                             status = ""
-                            syncTodos(works + exams + all)
+                            Log.i(CX_TAG, "AI完成状态核对：${doneIds.size}/${aiChecks.size} 条已完成")
+                            syncTodos(works + exams + updated)
                             return@ui
                         }
                         if (!o.optBoolean("ok")) {
@@ -957,7 +1051,7 @@ fun ChaoxingScreen(onBack: () -> Unit) {
     // 抓取超时兜底：WebView 里 20 门课并行请求，正常几秒完成
     LaunchedEffect(loading, needLogin) {
         if (loading && !needLogin) {
-            delay(30_000)
+            delay(60_000)
             if (loading) {
                 loading = false
                 status = "读取超时了，点右上角刷新再试一次～"
@@ -1154,6 +1248,12 @@ fun ChaoxingScreen(onBack: () -> Unit) {
                                         ui { needLogin = false }
                                         view.evaluateJavascript(CX_FETCH_JS, null)
                                     }
+                                    // mooc2-ans 跳板页：在这里并发核对每条 AI实践 的完成状态
+                                    u.contains("ai-start-tit1.png") -> {
+                                        if (loading && aiChecks.isNotEmpty()) {
+                                            view.evaluateJavascript(aiDoneFetchJs(aiChecks), null)
+                                        }
+                                    }
                                     // mobilelearn 任务页：在这个域里并发查各课程的「AI实践」
                                     u.contains("mobilelearn.chaoxing.com") && u.contains("/page/active") -> {
                                         if (loading && courses.isNotEmpty()) {
@@ -1335,7 +1435,8 @@ private fun parseActives(arr: JSONArray?): List<CxTask> {
                 url = o.optString("url"),
                 type = "ai",
                 endTime = o.optLong("endTime"),
-                key = o.optString("id").ifBlank { o.optString("url") }
+                key = o.optString("id").ifBlank { o.optString("url") },
+                cpi = o.optString("cpi")
             )
         )
     }

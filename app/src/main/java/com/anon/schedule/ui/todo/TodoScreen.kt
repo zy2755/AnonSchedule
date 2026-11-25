@@ -59,6 +59,7 @@ import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextDecoration
+import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import com.anon.schedule.data.CourseBean
@@ -238,7 +239,11 @@ private fun LazyListScope.todoSection(
                             courseName,
                             fontSize = 11.sp,
                             color = MaterialTheme.colorScheme.primary,
+                            // 课程名过长时省略号收尾，把宽度让给右边的截止时间，避免日期被挤成一字一行
+                            maxLines = 1,
+                            overflow = TextOverflow.Ellipsis,
                             modifier = Modifier
+                                .weight(1f, fill = false)
                                 .clip(RoundedCornerShape(6.dp))
                                 .background(MaterialTheme.colorScheme.primary.copy(alpha = 0.10f))
                                 .padding(horizontal = 6.dp, vertical = 2.dp)
@@ -248,6 +253,8 @@ private fun LazyListScope.todoSection(
                     Text(
                         dueLabel,
                         fontSize = 11.sp,
+                        maxLines = 1,
+                        softWrap = false,
                         color = when {
                             overdue -> MaterialTheme.colorScheme.error
                             todo.dueDate == today.toEpochDay() -> MaterialTheme.colorScheme.primary

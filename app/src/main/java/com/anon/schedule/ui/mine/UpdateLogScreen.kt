@@ -35,6 +35,18 @@ private data class UpdateEntry(val version: String, val days: List<UpdateDay>)
 /** 更新内容（新的在最上面；改动按版本归类，同一版本内再按日期分段） */
 private val updateEntries = listOf(
     UpdateEntry(
+        version = "1.4.4",
+        days = listOf(
+            UpdateDay(
+                date = "2026-11-25",
+                items = listOf(
+                    "待办清单：课程名太长时自动省略，截止时间不再被挤成一字一行的竖排",
+                    "版本：升级到 1.4.4"
+                )
+            )
+        )
+    ),
+    UpdateEntry(
         version = "1.4.3",
         days = listOf(
             UpdateDay(

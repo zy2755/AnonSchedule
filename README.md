@@ -6,9 +6,9 @@
 
 ## 下载
 
-最新版本 **v1.4.3**：[Releases](https://github.com/zy2755/AnonSchedule/releases/latest)
+最新版本 **v1.4.4**：[Releases](https://github.com/zy2755/AnonSchedule/releases/latest)
 
-下载 `AnonSchedule-v1.4.3.apk` 覆盖安装即可，数据会保留（Android 8.0+）。
+下载 `AnonSchedule-v1.4.4.apk` 覆盖安装即可，数据会保留（Android 8.0+）。
 
 ## 功能
 
@@ -36,7 +36,7 @@
 | 序列化 | kotlinx.serialization |
 | minSdk / targetSdk | 26 / 35 |
 | JDK | 17 |
-| 当前版本 | 1.4.3（versionCode 29） |
+| 当前版本 | 1.4.4（versionCode 30） |
 
 ## 构建
 

@@ -35,6 +35,20 @@ private data class UpdateEntry(val version: String, val days: List<UpdateDay>)
 /** 更新内容（新的在最上面；改动按版本归类，同一版本内再按日期分段） */
 private val updateEntries = listOf(
     UpdateEntry(
+        version = "1.4.1",
+        days = listOf(
+            UpdateDay(
+                date = "2026-11-25",
+                items = listOf(
+                    "学习通联动：刷新作业 / 考试时，未完成的任务会自动加入待办清单，并带上剩余时间对应的截止时刻",
+                    "学习通里已完成的任务，对应待办会自动勾掉；重复刷新不会重复添加",
+                    "本周课表小部件只显示课程名，按格子宽度自动折行、缩小字号，长课程名也能看全",
+                    "版本：升级到 1.4.1"
+                )
+            )
+        )
+    ),
+    UpdateEntry(
         version = "1.4.0",
         days = listOf(
             UpdateDay(

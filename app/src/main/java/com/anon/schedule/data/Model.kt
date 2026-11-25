@@ -70,7 +70,9 @@ data class CourseTodo(
     val createdAt: Long = 0L,
     val dueDate: Long = 0L,        // 截止日期（epochDay），0 = 没有日期
     val dueMinute: Int = -1,        // 截止时刻（当天第几分钟），-1 = 全天
-    val remind: Boolean = false     // 到截止时间发通知提醒
+    val remind: Boolean = false,    // 到截止时间发通知提醒
+    val source: String = "",        // 来源：""=手动，cx_work / cx_exam=学习通作业 / 考试
+    val sourceKey: String = ""      // 来源里的唯一标识，刷新学习通时用来去重
 )
 
 /** 一条成绩记录（从教务抓取，按 学年+学期 累积） */

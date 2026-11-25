@@ -438,7 +438,9 @@ private fun TodoEditDialog(
                             createdAt = todo?.createdAt ?: System.currentTimeMillis(),
                             dueDate = dueDate,
                             dueMinute = if (dueDate > 0L) dueMinute else -1,
-                            remind = remind && dueDate > 0L
+                            remind = remind && dueDate > 0L,
+                            source = todo?.source ?: "",
+                            sourceKey = todo?.sourceKey ?: ""
                         )
                     )
                 },

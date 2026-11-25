@@ -70,10 +70,14 @@ import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.viewinterop.AndroidView
 import androidx.core.content.FileProvider
+import com.anon.schedule.data.ChaoxingTodoSync
+import com.anon.schedule.data.Repo
+import com.anon.schedule.notify.TodoReminder
 import com.anon.schedule.ui.common.GlassCard
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.launch
+import java.time.LocalDateTime
 import kotlinx.coroutines.withContext
 import org.json.JSONArray
 import org.json.JSONObject
@@ -700,6 +704,46 @@ fun ChaoxingScreen(onBack: () -> Unit) {
         return true
     }
 
+    /**
+     * 刷新到任务后调用：未完成的作业 / 考试自动并进待办清单，
+     * 已完成的任务把对应的待办勾掉；重复刷新靠 sourceKey 去重。
+     */
+    fun syncTodos(tasks: List<CxTask>) {
+        val st = Repo.state.value
+        val courseIds = st.courses.filter { it.tableId == st.currentTableId }
+            .associate { it.name.trim() to it.id }
+        val remotes = tasks.map { task ->
+            ChaoxingTodoSync.Remote(
+                title = task.title,
+                course = task.course,
+                type = task.type,
+                url = task.url,
+                remain = task.remain,
+                finished = task.isFinished()
+            )
+        }
+        val merged = ChaoxingTodoSync.merge(
+            todos = st.todos,
+            items = remotes,
+            now = LocalDateTime.now(),
+            idFactory = { Repo.nextId() },
+            courseIdOf = { name -> courseIds[name.trim()] ?: 0L }
+        )
+        Log.i(
+            CX_TAG,
+            "同步待办：远端 ${remotes.size} 条，未完成 ${remotes.count { !it.finished }} 条，" +
+                "待办 ${st.todos.size} → ${merged.size}"
+        )
+        if (merged != st.todos) {
+            Repo.update { s -> s.copy(todos = merged) }
+            TodoReminder.scheduleAll(ctx)
+            val added = merged.size - st.todos.size
+            if (added > 0) {
+                Toast.makeText(ctx, "已把 $added 条未完成的学习通任务加入待办", Toast.LENGTH_SHORT).show()
+            }
+        }
+    }
+
     // JS Bridge：抓取结果回传后解析成卡片数据
     val bridge = remember {
         object {
@@ -712,12 +756,16 @@ fun ChaoxingScreen(onBack: () -> Unit) {
                         if (!o.optBoolean("ok")) {
                             needLogin = true
                         } else {
-                            works = parseTasks(o.optJSONArray("works"), "work")
-                            exams = parseTasks(o.optJSONArray("exams"), "exam")
+                            val newWorks = parseTasks(o.optJSONArray("works"), "work")
+                            val newExams = parseTasks(o.optJSONArray("exams"), "exam")
+                            works = newWorks
+                            exams = newExams
                             needLogin = false
-                            status = if (works.isEmpty() && exams.isEmpty()) {
+                            status = if (newWorks.isEmpty() && newExams.isEmpty()) {
                                 "没有读到任务，先确认学习通已登录好～"
                             } else ""
+                            // 刷新就顺手同步待办：未完成的自动进待办
+                            syncTodos(newWorks + newExams)
                         }
                     } catch (e: Exception) {
                         status = "解析失败：${e.message}"

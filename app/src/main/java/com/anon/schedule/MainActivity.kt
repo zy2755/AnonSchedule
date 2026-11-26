@@ -1,5 +1,6 @@
 package com.anon.schedule
 
+import android.content.Intent
 import android.content.res.Configuration
 import android.graphics.BitmapFactory
 import android.graphics.drawable.ColorDrawable
@@ -182,6 +183,9 @@ private const val BAR_DARK_TINT_ALPHA = 0.86f
 /** 桌面长按「添加小部件」快捷方式带进来的标记（对应 res/xml/shortcuts.xml 里的 extra） */
 private const val EXTRA_ADD_WIDGET = "com.anon.schedule.extra.ADD_WIDGET"
 
+/** 桌面「待办 DDL」小组件带进来的标记：进入 App 后直接打开待办清单页 */
+internal const val EXTRA_OPEN_TODOS = "com.anon.schedule.extra.OPEN_TODOS"
+
 /** 全屏二级页面（栈式导航，可多层叠加） */
 sealed class SubPage {
     data object Settings : SubPage()
@@ -206,6 +210,10 @@ sealed class SubPage {
 }
 
 class MainActivity : ComponentActivity() {
+
+    /** 点「待办 DDL」小组件发来的请求：App 已在运行时靠它把待办页压进导航栈 */
+    private val openTodosRequest = mutableStateOf(false)
+
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
         enableEdgeToEdge()
@@ -238,6 +246,8 @@ class MainActivity : ComponentActivity() {
         )
         // 从桌面快捷方式进来：进课表页后直接弹出「添加小部件」
         val fromWidgetShortcut = intent?.getStringExtra(EXTRA_ADD_WIDGET) == "1"
+        // 从「待办 DDL」小组件进来：直接打开待办清单
+        openTodosRequest.value = intent?.getStringExtra(EXTRA_OPEN_TODOS) == "1"
         setContent {
             val st by Repo.state.collectAsState()
             // 状态栏 / 导航栏图标颜色跟随 App 主题，而不是系统深浅色。
@@ -288,11 +298,22 @@ class MainActivity : ComponentActivity() {
                 ) {
                     // 单独一层：拖动时只重组这一层 + 卡片，不牵动 AppTheme / AppRoot 整棵树
                     CardAlphaProvider {
-                        AppRoot(fromWidgetShortcut)
+                        AppRoot(
+                            addWidgetShortcut = fromWidgetShortcut,
+                            openTodosShortcut = openTodosRequest.value,
+                            onOpenTodosShown = { openTodosRequest.value = false }
+                        )
                     }
                 }
             }
         }
+    }
+
+    override fun onNewIntent(intent: Intent) {
+        super.onNewIntent(intent)
+        setIntent(intent)
+        // App 已在后台时点「待办 DDL」小组件：同样直接打开待办清单
+        if (intent.getStringExtra(EXTRA_OPEN_TODOS) == "1") openTodosRequest.value = true
     }
 
     override fun onStop() {
@@ -308,7 +329,11 @@ class MainActivity : ComponentActivity() {
 }
 
 @Composable
-fun AppRoot(addWidgetShortcut: Boolean = false) {
+fun AppRoot(
+    addWidgetShortcut: Boolean = false,
+    openTodosShortcut: Boolean = false,
+    onOpenTodosShown: () -> Unit = {}
+) {
     val st by Repo.state.collectAsState()
     val contentHaze = LocalContentHaze.current
     val wallpaperHaze = LocalWallpaperHaze.current
@@ -338,6 +363,14 @@ fun AppRoot(addWidgetShortcut: Boolean = false) {
     fun pop() { if (subStack.isNotEmpty()) subStack.removeAt(subStack.lastIndex) }
     val sub = subStack.lastOrNull()
     val navVisible = subStack.isEmpty()
+
+    // 点「待办 DDL」小组件进来：直接压入待办页；已经在待办页就不重复压栈
+    LaunchedEffect(openTodosShortcut) {
+        if (openTodosShortcut) {
+            if (subStack.lastOrNull() != SubPage.TodoList) push(SubPage.TodoList)
+            onOpenTodosShown()
+        }
+    }
 
     BackHandler(enabled = subStack.isNotEmpty()) { pop() }
 

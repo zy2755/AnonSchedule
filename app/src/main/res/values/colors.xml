@@ -11,4 +11,9 @@
     <color name="widget_card_dim">#7A7A83</color>
     <!-- 今日/明日两列之间的分隔线 -->
     <color name="widget_divider">#E4E4EA</color>
+    <!-- 待办 DDL：逾期红点 / 今天到期 / 普通待办 / 进度条底槽 -->
+    <color name="widget_overdue">#E5484D</color>
+    <color name="widget_due_today">#E8629B</color>
+    <color name="widget_idle">#CDCDD6</color>
+    <color name="widget_track">#EDEDF2</color>
 </resources>

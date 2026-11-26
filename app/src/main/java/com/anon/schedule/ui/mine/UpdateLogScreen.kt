@@ -35,6 +35,21 @@ private data class UpdateEntry(val version: String, val days: List<UpdateDay>)
 /** 更新内容（新的在最上面；改动按版本归类，同一版本内再按日期分段） */
 private val updateEntries = listOf(
     UpdateEntry(
+        version = "1.5.0",
+        days = listOf(
+            UpdateDay(
+                date = "2026-11-26",
+                items = listOf(
+                    "新增「待办 DDL · 4×2」小组件：最近到期的两条待办直接摆在桌面，逾期标红、今天到期标粉，点击直达待办清单",
+                    "新增「本学期进度 · 2×2」小组件：显示第几周 / 共几周、已过百分比、剩余周数与结课日期，进度条跟随主题点缀色",
+                    "小组件会在待办截止时刻自动刷新，过点立刻变成已逾期",
+                    "待办 DDL / 本学期进度 / 本周课表 4×4 补上了小部件选择面板的缩略图（小米桌面只认预览图）",
+                    "版本：升级到 1.5.0"
+                )
+            )
+        )
+    ),
+    UpdateEntry(
         version = "1.4.4",
         days = listOf(
             UpdateDay(

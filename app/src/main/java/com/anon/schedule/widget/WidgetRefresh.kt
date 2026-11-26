@@ -7,7 +7,6 @@ import android.content.Context
 import android.content.Intent
 import android.os.Build
 import java.time.LocalDate
-import java.time.LocalTime
 import java.time.ZoneId
 
 /**
@@ -47,14 +46,22 @@ object WidgetRefresh {
         val today = LocalDate.now(zone)
         val midnight = today.plusDays(1).atStartOfDay(zone).plusSeconds(10).toInstant().toEpochMilli()
 
-        val courseMarks = runCatching {
-            WidgetData.today(WidgetData.load(ctx))
-                .flatMap { listOfNotNull(it.start, it.end) }
-        }.getOrElse { emptyList<LocalTime>() }
+        val st = runCatching { WidgetData.load(ctx) }.getOrNull()
+        val courseMarks = st?.let { WidgetData.today(it) }.orEmpty()
+            .flatMap { listOfNotNull(it.start, it.end) }
             .map { today.atTime(it).atZone(zone).toInstant().toEpochMilli() }
             .filter { it > nowMs + 30_000 }
 
-        return (courseMarks + midnight).minOrNull()
+        // 待办截止时刻也要刷：过了点「待办 DDL」小组件才能立刻变成已逾期
+        val todoMarks = st?.todos.orEmpty()
+            .filter { !it.done && it.dueDate == today.toEpochDay() && it.dueMinute >= 0 }
+            .map {
+                today.atStartOfDay(zone).plusMinutes(it.dueMinute.toLong())
+                    .toInstant().toEpochMilli()
+            }
+            .filter { it > nowMs + 30_000 }
+
+        return (courseMarks + todoMarks + midnight).minOrNull()
     }
 
     private fun pending(ctx: Context): PendingIntent =

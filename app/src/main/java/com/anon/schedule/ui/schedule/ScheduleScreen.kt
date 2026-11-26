@@ -143,10 +143,12 @@ import com.anon.schedule.ui.common.TilePink
 import com.anon.schedule.ui.common.TilePurple
 import com.anon.schedule.ui.common.courseColor
 import com.anon.schedule.ui.theme.LocalGlass
+import com.anon.schedule.widget.SemesterProgressWidget
 import com.anon.schedule.widget.TodayLargeWidget
 import com.anon.schedule.widget.TodaySmallWidget
 import com.anon.schedule.widget.TodayTomorrowWidget
 import com.anon.schedule.widget.TodayWideWidget
+import com.anon.schedule.widget.TodoDdlWidget
 import com.anon.schedule.widget.WeekTimetableWidget
 import java.time.format.DateTimeFormatter
 import java.io.File
@@ -481,6 +483,8 @@ fun ScheduleScreen(
                     WidgetPinRow("今日课程 · 4×2", TodayWideWidget::class.java) { addingWidget = false }
                     WidgetPinRow("今日 · 明日 · 4×4", TodayTomorrowWidget::class.java) { addingWidget = false }
                     WidgetPinRow("本周课表 · 4×4", WeekTimetableWidget::class.java) { addingWidget = false }
+                    WidgetPinRow("待办 DDL · 4×2", TodoDdlWidget::class.java) { addingWidget = false }
+                    WidgetPinRow("本学期进度 · 2×2", SemesterProgressWidget::class.java) { addingWidget = false }
                 }
             },
             confirmButton = {

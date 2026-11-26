@@ -1,14 +1,14 @@
 # AnonSchedule · 课程表
 
-一个用 Kotlin + Jetpack Compose 写的 Android 课程表 App：周课表、DDL 待办、多学期归档、教务导入、学习通作业 / 考试、成绩、五款桌面小组件，以及一套液态玻璃风格的界面。
+一个用 Kotlin + Jetpack Compose 写的 Android 课程表 App：周课表、DDL 待办、多学期归档、教务导入、学习通作业 / 考试、成绩、七款桌面小组件，以及一套液态玻璃风格的界面。
 
 [![License: Apache-2.0](https://img.shields.io/badge/License-Apache_2.0-blue.svg)](LICENSE)
 
 ## 下载
 
-最新版本 **v1.4.4**：[Releases](https://github.com/zy2755/AnonSchedule/releases/latest)
+最新版本 **v1.5.0**：[Releases](https://github.com/zy2755/AnonSchedule/releases/latest)
 
-下载 `AnonSchedule-v1.4.4.apk` 覆盖安装即可，数据会保留（Android 8.0+）。
+下载 `AnonSchedule-v1.5.0.apk` 覆盖安装即可，数据会保留（Android 8.0+）。
 
 ## 功能
 
@@ -19,7 +19,7 @@
 - **教务系统导入**：内置 WebView 登录正方教务（zftal `kbList` 接口），一键读取课表
 - **学习通**：登录后查看作业、考试列表，Cookie 本地持久化；刷新时未完成的任务会自动加入待办清单（剩余时间换算成截止时刻，完成后自动勾掉，刷新不重复添加）；「AI实践」单独一栏，会逐条核对作答状态，做完的不再进待办
 - **成绩查询**：汇总卡支持「学分加权 / 算术平均」切换
-- **桌面小组件**：5 种规格 —— 今日 2×2 / 今日 4×4 / 今日 4×2 / 今日·明日 4×4 / 本周课表 4×4（均支持拉伸）
+- **桌面小组件**：7 种规格 —— 今日 2×2 / 今日 4×4 / 今日 4×2 / 今日·明日 4×4 / 本周课表 4×4 / 待办 DDL 4×2 / 本学期进度 2×2（课表类支持拉伸）；待办会在截止时刻、进度会在跨零点自动刷新
 - **提醒**：上课提醒、待办到期提醒、「下节课」常驻通知（上下课自动更新）
 - **月历视图**：整月看每天几门课，点某天查看当天课程与待办
 - **分享导出**：课表长图（竖向 / 横向 / 深色 / 极简四种样式）、`.ics` 日历文件
@@ -36,7 +36,7 @@
 | 序列化 | kotlinx.serialization |
 | minSdk / targetSdk | 26 / 35 |
 | JDK | 17 |
-| 当前版本 | 1.4.4（versionCode 30） |
+| 当前版本 | 1.5.0（versionCode 31） |
 
 ## 构建
 

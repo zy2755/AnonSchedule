@@ -167,6 +167,32 @@
                 android:resource="@xml/widget_week_info" />
         </receiver>
 
+        <!-- 待办 DDL 小组件 · 4×2 -->
+        <receiver
+            android:name=".widget.TodoDdlWidget"
+            android:exported="true"
+            android:label="@string/widget_todo_label">
+            <intent-filter>
+                <action android:name="android.appwidget.action.APPWIDGET_UPDATE" />
+            </intent-filter>
+            <meta-data
+                android:name="android.appwidget.provider"
+                android:resource="@xml/widget_todo_ddl_info" />
+        </receiver>
+
+        <!-- 本学期进度小组件 · 2×2 -->
+        <receiver
+            android:name=".widget.SemesterProgressWidget"
+            android:exported="true"
+            android:label="@string/widget_semester_label">
+            <intent-filter>
+                <action android:name="android.appwidget.action.APPWIDGET_UPDATE" />
+            </intent-filter>
+            <meta-data
+                android:name="android.appwidget.provider"
+                android:resource="@xml/widget_semester_info" />
+        </receiver>
+
         <!-- 4×4 列表的数据来源 -->
         <service
             android:name=".widget.TodayLargeService"

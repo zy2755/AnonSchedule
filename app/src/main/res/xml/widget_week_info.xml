@@ -5,6 +5,7 @@
     android:initialLayout="@layout/widget_week"
     android:minHeight="220dp"
     android:minWidth="250dp"
+    android:previewImage="@drawable/widget_preview_week"
     android:previewLayout="@layout/widget_week"
     android:resizeMode="horizontal|vertical"
     android:targetCellHeight="4"

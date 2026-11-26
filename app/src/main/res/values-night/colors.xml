@@ -9,4 +9,9 @@
     <color name="widget_card_text">#F5F5F7</color>
     <color name="widget_card_dim">#A0A0AA</color>
     <color name="widget_divider">#26262B</color>
+    <!-- 待办 DDL：逾期红点 / 今天到期 / 普通待办 / 进度条底槽 -->
+    <color name="widget_overdue">#FF6B6B</color>
+    <color name="widget_due_today">#FF8FB8</color>
+    <color name="widget_idle">#4A4A55</color>
+    <color name="widget_track">#26262C</color>
 </resources>

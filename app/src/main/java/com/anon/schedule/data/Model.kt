@@ -22,7 +22,8 @@ data class CourseBean(
     val id: Long,
     val name: String,
     val color: Int = 0,
-    val tableId: Long = 0L
+    val tableId: Long = 0L,
+    val remind: Boolean = true   // 上课前是否提醒：关掉后这门课不排提醒闹钟
 )
 
 /**

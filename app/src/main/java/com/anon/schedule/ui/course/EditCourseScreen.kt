@@ -38,12 +38,15 @@ import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
+import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.unit.dp
 import com.anon.schedule.data.CourseBean
 import com.anon.schedule.data.CourseLogic
 import com.anon.schedule.data.DetailBean
 import com.anon.schedule.data.Repo
 import com.anon.schedule.data.tableSettings
+import com.anon.schedule.notify.ClassReminder
+import com.anon.schedule.ui.common.PillSwitch
 import com.anon.schedule.ui.common.courseColor
 import com.anon.schedule.ui.common.courseColors
 
@@ -64,6 +67,8 @@ fun EditCourseScreen(courseId: Long, onBack: () -> Unit) {
     var startWeek by remember { mutableIntStateOf(existingDetail?.startWeek ?: 1) }
     var endWeek by remember { mutableIntStateOf(existingDetail?.endWeek ?: st.tableSettings().maxWeek) }
     var type by remember { mutableIntStateOf(existingDetail?.type ?: 0) }
+    var remind by remember { mutableStateOf(existing?.remind ?: true) }
+    val context = LocalContext.current
 
     // 时间冲突：有冲突先弹窗确认，选「保留」才真正落库
     var showConflict by remember { mutableStateOf(false) }
@@ -76,7 +81,13 @@ fun EditCourseScreen(courseId: Long, onBack: () -> Unit) {
             var details = s.details
             if (existing == null) {
                 val cid = Repo.nextId()
-                courses = courses + CourseBean(cid, finalName, color, s.currentTableId)
+                courses = courses + CourseBean(
+                    id = cid,
+                    name = finalName,
+                    color = color,
+                    tableId = s.currentTableId,
+                    remind = remind
+                )
                 details = details + DetailBean(
                     id = Repo.nextId(), courseId = cid, day = day, room = room,
                     teacher = teacher, startNode = startNode, step = step,
@@ -85,7 +96,7 @@ fun EditCourseScreen(courseId: Long, onBack: () -> Unit) {
                 )
             } else {
                 courses = courses.map {
-                    if (it.id == existing.id) it.copy(name = finalName, color = color) else it
+                    if (it.id == existing.id) it.copy(name = finalName, color = color, remind = remind) else it
                 }
                 details = if (existingDetail == null) details else details.map {
                     if (it.id == existingDetail.id) it.copy(
@@ -97,6 +108,8 @@ fun EditCourseScreen(courseId: Long, onBack: () -> Unit) {
             }
             s.copy(courses = courses, details = details)
         }
+        // 提醒开关可能变了：立刻按新设置重排上课提醒
+        ClassReminder.scheduleAll(context)
         onBack()
     }
 
@@ -175,6 +188,21 @@ fun EditCourseScreen(courseId: Long, onBack: () -> Unit) {
                         }
                     }
                 }
+            }
+
+            Row(
+                verticalAlignment = Alignment.CenterVertically,
+                modifier = Modifier.fillMaxWidth()
+            ) {
+                Column(Modifier.weight(1f)) {
+                    Text("上课提醒", style = MaterialTheme.typography.labelLarge)
+                    Text(
+                        "关掉后这门课不上课前提醒",
+                        style = MaterialTheme.typography.bodySmall,
+                        color = MaterialTheme.colorScheme.onSurfaceVariant
+                    )
+                }
+                PillSwitch(checked = remind, onCheckedChange = { remind = it })
             }
 
             Text("上课星期", style = MaterialTheme.typography.labelLarge)

@@ -100,6 +100,8 @@ object ClassReminder {
             val date = today.plusDays(offset.toLong())
             WidgetData.day(st, date).forEachIndexed { idx, course ->
                 val start = course.start ?: return@forEachIndexed
+                // 课程编辑页里单独关掉提醒的课直接跳过
+                if (!course.remind) return@forEachIndexed
                 val triggerAt = date.atTime(start).atZone(zone).toInstant().toEpochMilli() -
                     lead * 60_000L
                 if (triggerAt <= now) return@forEachIndexed

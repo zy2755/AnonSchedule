@@ -38,4 +38,14 @@
         android:maxLines="1"
         android:textColor="@color/widget_card_dim"
         android:textSize="11sp" />
+
+    <!-- 点这个小勾直接在桌面标记完成 -->
+    <ImageView
+        android:id="@+id/todo_check"
+        android:layout_width="22dp"
+        android:layout_height="22dp"
+        android:layout_marginStart="8dp"
+        android:contentDescription="完成待办"
+        android:padding="1dp"
+        android:src="@drawable/ic_widget_check" />
 </LinearLayout>

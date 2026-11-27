@@ -209,6 +209,11 @@
             android:name=".notify.TodoReminderReceiver"
             android:exported="false" />
 
+        <!-- 待办 DDL 小组件里点小勾：直接在桌面标记完成 -->
+        <receiver
+            android:name=".widget.TodoWidgetActionReceiver"
+            android:exported="false" />
+
         <!-- 小组件到点自刷：零点跨天、上下课切换时重画一次，不依赖系统周期广播 -->
         <receiver
             android:name=".widget.WidgetRefreshReceiver"

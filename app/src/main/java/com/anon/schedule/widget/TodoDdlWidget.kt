@@ -96,7 +96,20 @@ class TodoDdlWidget : AppWidgetProvider() {
                     }
                 )
             )
+            v.setOnClickPendingIntent(R.id.todo_check, doneIntent(ctx, todo.id))
             return v
+        }
+
+        /** 每行独立的「勾掉」广播（requestCode 按 id 区分，避免互相覆盖） */
+        private fun doneIntent(ctx: Context, id: Long): PendingIntent {
+            val code = ((id xor (id ushr 32)) and 0x7FFFFFFF).toInt()
+            val intent = Intent(ctx, TodoWidgetActionReceiver::class.java)
+                .setAction(TodoWidgetActionReceiver.ACTION_DONE)
+                .putExtra(TodoWidgetActionReceiver.EXTRA_ID, id)
+            return PendingIntent.getBroadcast(
+                ctx, code, intent,
+                PendingIntent.FLAG_UPDATE_CURRENT or PendingIntent.FLAG_IMMUTABLE
+            )
         }
     }
 }

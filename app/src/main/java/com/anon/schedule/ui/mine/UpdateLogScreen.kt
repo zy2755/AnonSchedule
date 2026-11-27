@@ -35,6 +35,19 @@ private data class UpdateEntry(val version: String, val days: List<UpdateDay>)
 /** 更新内容（新的在最上面；改动按版本归类，同一版本内再按日期分段） */
 private val updateEntries = listOf(
     UpdateEntry(
+        version = "1.6.0",
+        days = listOf(
+            UpdateDay(
+                date = "2026-11-27",
+                items = listOf(
+                    "「待办 DDL」小组件每行新增小勾，桌面上点一下直接完成，勾完自动刷新并撤掉到期提醒",
+                    "课程编辑页新增「上课提醒」开关，可以单独关掉某门课的课前提醒，保存后立即重排",
+                    "版本：升级到 1.6.0"
+                )
+            )
+        )
+    ),
+    UpdateEntry(
         version = "1.5.0",
         days = listOf(
             UpdateDay(

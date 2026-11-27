@@ -21,7 +21,8 @@ data class WidgetCourse(
     val teacherText: String,
     val colorArgb: Int,
     val start: LocalTime?,
-    val end: LocalTime?
+    val end: LocalTime?,
+    val remind: Boolean = true
 )
 
 /**
@@ -62,7 +63,8 @@ object WidgetData {
                     teacherText = d.teacher,
                     colorArgb = courseColor(shown.course.color).toArgb(),
                     start = first?.let { parseTime(it.start) },
-                    end = (last ?: first)?.let { parseTime(it.end) }
+                    end = (last ?: first)?.let { parseTime(it.end) },
+                    remind = shown.course.remind
                 )
             }
     }

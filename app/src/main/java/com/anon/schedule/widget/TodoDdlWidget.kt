@@ -84,18 +84,16 @@ class TodoDdlWidget : AppWidgetProvider() {
                     if (bucket == TodoLogic.Bucket.OVERDUE) R.color.widget_overdue else R.color.widget_card_dim
                 )
             )
-            v.setInt(
-                R.id.todo_accent,
-                "setBackgroundColor",
-                ContextCompat.getColor(
-                    ctx,
-                    when (bucket) {
-                        TodoLogic.Bucket.OVERDUE -> R.color.widget_overdue
-                        TodoLogic.Bucket.TODAY -> R.color.widget_due_today
-                        else -> R.color.widget_idle
-                    }
-                )
+            val accent = ContextCompat.getColor(
+                ctx,
+                when (bucket) {
+                    TodoLogic.Bucket.OVERDUE -> R.color.widget_overdue
+                    TodoLogic.Bucket.TODAY -> R.color.widget_due_today
+                    else -> R.color.widget_idle
+                }
             )
+            // 左侧方框的描边跟着紧急度走：逾期红 / 今天粉 / 其余灰
+            v.setInt(R.id.todo_check, "setColorFilter", accent)
             v.setOnClickPendingIntent(R.id.todo_check, doneIntent(ctx, todo.id))
             return v
         }

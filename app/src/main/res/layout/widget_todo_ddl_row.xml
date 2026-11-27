@@ -1,5 +1,5 @@
 <?xml version="1.0" encoding="utf-8"?>
-<!-- 待办 DDL 里的一条：左侧紧急度色线 + 待办标题，右侧截止文案 -->
+<!-- 待办 DDL 里的一条：左侧方形勾选框 + 待办标题，右侧截止文案 -->
 <LinearLayout xmlns:android="http://schemas.android.com/apk/res/android"
     android:layout_width="match_parent"
     android:layout_height="wrap_content"
@@ -7,15 +7,17 @@
     android:orientation="horizontal"
     android:paddingStart="4dp"
     android:paddingEnd="4dp"
-    android:paddingTop="5dp"
-    android:paddingBottom="5dp">
+    android:paddingTop="6dp"
+    android:paddingBottom="6dp">
 
-    <TextView
-        android:id="@+id/todo_accent"
-        android:layout_width="3dp"
+    <!-- 点这个方框直接在桌面标记完成，外框颜色代表紧急度 -->
+    <ImageView
+        android:id="@+id/todo_check"
+        android:layout_width="22dp"
         android:layout_height="22dp"
         android:layout_marginEnd="10dp"
-        android:background="@color/widget_idle" />
+        android:contentDescription="完成待办"
+        android:src="@drawable/ic_widget_check_box" />
 
     <TextView
         android:id="@+id/todo_text"
@@ -38,14 +40,4 @@
         android:maxLines="1"
         android:textColor="@color/widget_card_dim"
         android:textSize="11sp" />
-
-    <!-- 点这个小勾直接在桌面标记完成 -->
-    <ImageView
-        android:id="@+id/todo_check"
-        android:layout_width="22dp"
-        android:layout_height="22dp"
-        android:layout_marginStart="8dp"
-        android:contentDescription="完成待办"
-        android:padding="1dp"
-        android:src="@drawable/ic_widget_check" />
 </LinearLayout>

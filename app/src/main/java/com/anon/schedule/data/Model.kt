@@ -23,7 +23,8 @@ data class CourseBean(
     val name: String,
     val color: Int = 0,
     val tableId: Long = 0L,
-    val remind: Boolean = true   // 上课前是否提醒：关掉后这门课不排提醒闹钟
+    val remind: Boolean = true,  // 上课前是否提醒：关掉后这门课不排提醒闹钟
+    val note: String = ""        // 课程备注：群号、课件链接、备忘，详情页展示
 )
 
 /**

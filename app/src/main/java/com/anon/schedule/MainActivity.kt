@@ -106,6 +106,7 @@ import com.anon.schedule.ui.course.EditCourseScreen
 import com.anon.schedule.ui.theme.GlassParams
 import com.anon.schedule.ui.theme.rememberGlassRefraction
 import com.anon.schedule.ui.importer.ImportCsvScreen
+import com.anon.schedule.ui.importer.ImportIcsScreen
 import com.anon.schedule.ui.importer.ImportZfScreen
 import com.anon.schedule.ui.mine.AcademicScreen
 import com.anon.schedule.ui.mine.ChaoxingScreen
@@ -195,6 +196,7 @@ sealed class SubPage {
     data class EditCourse(val courseId: Long) : SubPage()
     data object ImportZf : SubPage()
     data object ImportCsv : SubPage()
+    data object ImportIcs : SubPage()
     data object Grades : SubPage()
     data object MonthCalendar : SubPage()
     data object TodoList : SubPage()
@@ -460,6 +462,7 @@ fun AppRoot(
                         ScheduleScreen(
                             onImportZf = { push(SubPage.ImportZf) },
                             onImportCsv = { push(SubPage.ImportCsv) },
+                            onImportIcs = { push(SubPage.ImportIcs) },
                             onOpenSub = { push(it) },
                             showWidgetDialog = widgetDialogRequest,
                             onWidgetDialogShown = { widgetDialogRequest = false }
@@ -494,6 +497,7 @@ fun AppRoot(
                         )
                         SubPage.ImportZf -> ImportZfScreen(onBack = { pop() })
                         SubPage.ImportCsv -> ImportCsvScreen(onBack = { pop() })
+                        SubPage.ImportIcs -> ImportIcsScreen(onBack = { pop() })
                         SubPage.Grades -> GradesScreen(onBack = { pop() })
                         SubPage.MonthCalendar -> MonthScreen(onBack = { pop() })
                         SubPage.TodoList -> TodoScreen(onBack = { pop() })

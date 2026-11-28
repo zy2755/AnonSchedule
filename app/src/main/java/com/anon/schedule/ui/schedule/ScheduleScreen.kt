@@ -51,6 +51,7 @@ import androidx.compose.material.icons.filled.ContentCopy
 import androidx.compose.material.icons.filled.Delete
 import androidx.compose.material.icons.filled.Download
 import androidx.compose.material.icons.filled.Edit
+import androidx.compose.material.icons.automirrored.filled.Notes
 import androidx.compose.material.icons.filled.MoreVert
 import androidx.compose.material.icons.filled.NightsStay
 import androidx.compose.material.icons.filled.Person
@@ -110,10 +111,15 @@ import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.platform.LocalConfiguration
 import androidx.compose.ui.platform.LocalDensity
 import androidx.compose.ui.platform.LocalView
+import androidx.compose.ui.text.LinkAnnotation
+import androidx.compose.ui.text.SpanStyle
+import androidx.compose.ui.text.TextLinkStyles
+import androidx.compose.ui.text.buildAnnotatedString
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.text.style.TextDecoration
 import androidx.compose.ui.text.style.TextOverflow
+import androidx.compose.ui.text.withLink
 import androidx.compose.ui.unit.IntOffset
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
@@ -143,6 +149,7 @@ import com.anon.schedule.ui.common.TilePink
 import com.anon.schedule.ui.common.TilePurple
 import com.anon.schedule.ui.common.courseColor
 import com.anon.schedule.ui.theme.LocalGlass
+import com.anon.schedule.widget.ExamCountdownWidget
 import com.anon.schedule.widget.SemesterProgressWidget
 import com.anon.schedule.widget.TodayLargeWidget
 import com.anon.schedule.widget.TodaySmallWidget
@@ -191,6 +198,7 @@ private fun courseNameMaxLines(nameSp: Float, heightDp: Float): Int {
 fun ScheduleScreen(
     onImportZf: () -> Unit,
     onImportCsv: () -> Unit,
+    onImportIcs: () -> Unit,
     onOpenSub: (SubPage) -> Unit,
     onScrollBusy: (Boolean) -> Unit = {},
     showWidgetDialog: Boolean = false,
@@ -266,6 +274,11 @@ fun ScheduleScreen(
                         text = { Text("CSV 导入") },
                         leadingIcon = { Icon(Icons.Default.ViewList, null) },
                         onClick = { showImportMenu = false; onImportCsv() }
+                    )
+                    DropdownMenuItem(
+                        text = { Text("日历文件 (.ics) 导入") },
+                        leadingIcon = { Icon(Icons.Default.CalendarMonth, null) },
+                        onClick = { showImportMenu = false; onImportIcs() }
                     )
                 }
             }
@@ -485,6 +498,7 @@ fun ScheduleScreen(
                     WidgetPinRow("本周课表 · 4×4", WeekTimetableWidget::class.java) { addingWidget = false }
                     WidgetPinRow("待办 DDL · 4×2", TodoDdlWidget::class.java) { addingWidget = false }
                     WidgetPinRow("本学期进度 · 2×2", SemesterProgressWidget::class.java) { addingWidget = false }
+                    WidgetPinRow("考试倒计时 · 2×2", ExamCountdownWidget::class.java) { addingWidget = false }
                 }
             },
             confirmButton = {
@@ -1535,6 +1549,26 @@ fun CourseDetailSheet(
                         DetailRow(Icons.Default.AccessTime, "节次时间", timeText)
                         DetailRow(Icons.Default.Person, "授课教师", shown.detail.teacher.ifBlank { "未填写" })
                         DetailRow(Icons.Default.Place, "上课地点", shown.detail.room.ifBlank { "未填写" })
+                        // ---- 课程备注（群号 / 课件链接 / 备忘）----
+                        if (shown.course.note.isNotBlank()) {
+                            HorizontalDivider(Modifier.padding(top = 12.dp, bottom = 12.dp))
+                            Row(Modifier.fillMaxWidth()) {
+                                Icon(
+                                    Icons.AutoMirrored.Filled.Notes,
+                                    contentDescription = null,
+                                    tint = MaterialTheme.colorScheme.primary,
+                                    modifier = Modifier.size(22.dp)
+                                )
+                                Column(Modifier.padding(start = 14.dp).weight(1f)) {
+                                    Text(
+                                        "课程备注",
+                                        style = MaterialTheme.typography.labelMedium,
+                                        color = MaterialTheme.colorScheme.onSurfaceVariant
+                                    )
+                                    NoteText(shown.course.note, Modifier.padding(top = 2.dp))
+                                }
+                            }
+                        }
                         // ---- 课程待办 / 规划（设置里可整块关掉）----
                         // 注意：设置页的开关写的是「当前课表」的 settings，
                         // 这里也必须读 tableSettings()，读全局 st.settings 会永远拿到默认值。
@@ -1655,6 +1689,34 @@ private fun DetailRow(icon: ImageVector, title: String, value: String) {
             Text(value, style = MaterialTheme.typography.bodyLarge)
         }
     }
+}
+
+/** 备注里的链接（http/https 开头），交给系统用浏览器或对应 App 打开 */
+private val NoteUrlRegex = Regex("""https?://[^\s<>"'，。、；：）)】》]+""")
+
+@Composable
+private fun NoteText(text: String, modifier: Modifier = Modifier) {
+    val linkColor = MaterialTheme.colorScheme.primary
+    val annotated = remember(text, linkColor) {
+        buildAnnotatedString {
+            var last = 0
+            NoteUrlRegex.findAll(text).forEach { match ->
+                append(text.substring(last, match.range.first))
+                val url = match.value
+                withLink(
+                    LinkAnnotation.Url(
+                        url = url,
+                        styles = TextLinkStyles(
+                            style = SpanStyle(color = linkColor, textDecoration = TextDecoration.Underline)
+                        )
+                    )
+                ) { append(url) }
+                last = match.range.last + 1
+            }
+            append(text.substring(last))
+        }
+    }
+    Text(annotated, style = MaterialTheme.typography.bodyMedium, modifier = modifier)
 }
 
 /** 右上角「更多」：悬浮卡片，从屏幕底部升起（周数 / 课表 / 功能图标） */

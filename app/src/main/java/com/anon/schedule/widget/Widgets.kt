@@ -13,6 +13,7 @@ object Widgets {
         WeekTimetableWidget.refresh(ctx)
         TodoDdlWidget.refresh(ctx)
         SemesterProgressWidget.refresh(ctx)
+        ExamCountdownWidget.refresh(ctx)
         // 通知栏「下节课」跟着一起重算
         NextClassNotifier.refresh(ctx)
         // 刷完接着排下一个边界：跨零点、上下课都会自动再刷一次

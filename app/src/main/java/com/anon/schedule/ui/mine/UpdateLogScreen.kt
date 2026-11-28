@@ -35,6 +35,21 @@ private data class UpdateEntry(val version: String, val days: List<UpdateDay>)
 /** 更新内容（新的在最上面；改动按版本归类，同一版本内再按日期分段） */
 private val updateEntries = listOf(
     UpdateEntry(
+        version = "1.7.0",
+        days = listOf(
+            UpdateDay(
+                date = "2026-11-28",
+                items = listOf(
+                    "课程编辑页新增「课程备注」：群号、课件链接、考试范围都能写，课程详情里直接看，链接点一下就打开",
+                    "新增「日历文件 (.ics) 导入」：把系统日历或其它课表 App 导出的 .ics 解析回课表，导入前先预览确认（需先填开学日期）",
+                    "今日页新增「考试倒计时」卡片：显示学习通同步来的最近一场考试与剩余天数，3 天内标红，点卡片直达待办",
+                    "新增「考试倒计时 · 2×2」桌面小组件：最近一场考试 + 剩余天数，点击打开待办清单",
+                    "版本：升级到 1.7.0"
+                )
+            )
+        )
+    ),
+    UpdateEntry(
         version = "1.6.0",
         days = listOf(
             UpdateDay(

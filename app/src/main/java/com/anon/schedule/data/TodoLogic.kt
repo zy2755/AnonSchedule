@@ -63,6 +63,17 @@ object TodoLogic {
     /** 未完成总数（底部 tab / 角标用） */
     fun pendingCount(list: List<CourseTodo>): Int = list.count { !it.done }
 
+    /**
+     * 学习通同步来的考试（今天及以后、未完成），按截止时间从近到远。
+     * 今日页的倒计时卡片和桌面「考试倒计时」小组件共用这个口径。
+     */
+    fun upcomingExams(list: List<CourseTodo>, today: LocalDate): List<CourseTodo> =
+        list.filter { !it.done && it.source == "cx_exam" && it.dueDate >= today.toEpochDay() }
+            .sortedBy { sortKey(it) }
+
+    /** 距考试还有几天：今天 = 0，明天 = 1 */
+    fun daysUntil(todo: CourseTodo, today: LocalDate): Long = todo.dueDate - today.toEpochDay()
+
     /** 截止时间展示文案：今天 18:00 / 明天 / 10月3日 / 已逾期 */
     fun dueLabel(todo: CourseTodo, today: LocalDate): String {
         if (todo.dueDate <= 0L) return "无日期"

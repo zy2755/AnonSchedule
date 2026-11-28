@@ -31,6 +31,7 @@ import androidx.compose.material3.Scaffold
 import androidx.compose.material3.Text
 import androidx.compose.material3.TopAppBar
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
@@ -41,6 +42,7 @@ import androidx.compose.ui.unit.dp
 import androidx.compose.ui.viewinterop.AndroidView
 import com.anon.schedule.data.CourseBean
 import com.anon.schedule.data.DetailBean
+import com.anon.schedule.data.IcsImport
 import com.anon.schedule.data.Repo
 import com.anon.schedule.ui.common.GlassCard
 import org.json.JSONObject
@@ -278,6 +280,133 @@ fun ImportCsvScreen(onBack: () -> Unit) {
                         "· ${c.name} 周${"一二三四五六日"[c.day - 1]} 第${c.startNode}-${c.startNode + c.step - 1}节 " +
                             "$weekText ${c.teacher} ${c.room}",
                         style = MaterialTheme.typography.bodySmall
+                    )
+                }
+                Button(onClick = {
+                    importParsed(pending)
+                    status = "导入成功！共 ${pending.size} 条课程安排，えら〜い！"
+                    pending = emptyList()
+                }) {
+                    Text("确认导入")
+                }
+            }
+        }
+    }
+}
+
+// ============================ 日历文件 (.ics) 导入 ============================
+
+@OptIn(ExperimentalMaterial3Api::class)
+@Composable
+fun ImportIcsScreen(onBack: () -> Unit) {
+    val context = LocalContext.current
+    val st by Repo.state.collectAsState()
+    val tableName = st.tables.firstOrNull { it.id == st.currentTableId }?.name ?: "我的课表"
+    var status by remember {
+        mutableStateOf("选择手机里的 .ics 日历文件（系统日历或其它课表 App 导出的都行）")
+    }
+    var failed by remember { mutableStateOf(false) }
+    var pending by remember { mutableStateOf<List<RawCourse>>(emptyList()) }
+
+    val pickFile = rememberLauncherForActivityResult(ActivityResultContracts.OpenDocument()) { uri ->
+        if (uri != null) {
+            val text = runCatching {
+                context.contentResolver.openInputStream(uri)?.use { it.readBytes() }
+                    ?.toString(Charsets.UTF_8)
+            }.getOrNull()
+            if (text == null) {
+                pending = emptyList()
+                failed = true
+                status = "这个文件读不出来，换一个试试？"
+            } else {
+                IcsImport.parse(text, Repo.state.value).fold(
+                    onSuccess = { list ->
+                        pending = list.map {
+                            RawCourse(
+                                name = it.name, day = it.day,
+                                startNode = it.startNode, step = it.step,
+                                startWeek = it.startWeek, endWeek = it.endWeek, type = it.type,
+                                teacher = it.teacher, room = it.room
+                            )
+                        }
+                        failed = false
+                        status = "解析到 ${pending.size} 条课程安排，点「确认导入」加进「$tableName」"
+                    },
+                    onFailure = { e ->
+                        pending = emptyList()
+                        failed = true
+                        status = e.message ?: "解析失败，检查一下文件是不是标准的 .ics？"
+                    }
+                )
+            }
+        }
+    }
+
+    Scaffold(
+        topBar = {
+            TopAppBar(
+                title = { Text("日历文件导入") },
+                navigationIcon = {
+                    IconButton(onClick = onBack) {
+                        Icon(Icons.AutoMirrored.Filled.ArrowBack, contentDescription = "返回")
+                    }
+                }
+            )
+        }
+    ) { padding ->
+        Column(
+            Modifier
+                .fillMaxSize()
+                .padding(padding)
+                .padding(16.dp)
+                .verticalScroll(rememberScrollState()),
+            verticalArrangement = Arrangement.spacedBy(12.dp)
+        ) {
+            GlassCard(Modifier.fillMaxWidth()) {
+                Text("怎么排进课表：", style = MaterialTheme.typography.titleSmall)
+                Text(
+                    "按事件的开始时间对应到最接近的节次，重复事件按周次展开；" +
+                        "课程名、地点、描述里的「教师：」会自动带过来",
+                    style = MaterialTheme.typography.bodySmall,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant,
+                    modifier = Modifier.padding(top = 6.dp)
+                )
+                Text(
+                    "需要先在「课表设置」里填好开学日期，周次才对得上",
+                    style = MaterialTheme.typography.bodySmall,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant,
+                    modifier = Modifier.padding(top = 4.dp)
+                )
+            }
+
+            Text(
+                status,
+                style = MaterialTheme.typography.bodyMedium,
+                color = if (failed) MaterialTheme.colorScheme.error
+                else MaterialTheme.colorScheme.onSurface
+            )
+
+            OutlinedButton(onClick = { pickFile.launch(arrayOf("*/*")) }) {
+                Text("选择 .ics 文件")
+            }
+
+            if (pending.isNotEmpty()) {
+                pending.take(10).forEach { c ->
+                    val weekText = if (c.startWeek == c.endWeek) "第${c.startWeek}周"
+                    else "第${c.startWeek}-${c.endWeek}周" + when (c.type) {
+                        1 -> "(单周)"; 2 -> "(双周)"; else -> ""
+                    }
+                    Text(
+                        "· ${c.name} 周${"一二三四五六日"[c.day - 1]} 第${c.startNode}-${c.startNode + c.step - 1}节 " +
+                            "$weekText ${c.teacher} ${c.room}",
+                        style = MaterialTheme.typography.bodySmall
+                    )
+                }
+                if (pending.size > 10) {
+                    Text(
+                        "……还有 ${pending.size - 10} 条",
+                        style = MaterialTheme.typography.bodySmall,
+                        color = MaterialTheme.colorScheme.onSurfaceVariant
                     )
                 }
                 Button(onClick = {

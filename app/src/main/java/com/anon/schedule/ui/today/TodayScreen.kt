@@ -40,6 +40,7 @@ import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextDecoration
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
+import com.anon.schedule.data.CourseBean
 import com.anon.schedule.data.CourseLogic
 import com.anon.schedule.data.CourseTodo
 import com.anon.schedule.data.DetailBean
@@ -88,6 +89,9 @@ fun TodayScreen(onOpenTodos: () -> Unit = {}) {
         )
     }
 
+    // 考试倒计时：有学习通同步来的考试才出现
+    val exams = remember(st.todos, today) { TodoLogic.upcomingExams(st.todos, today) }
+
     // 今天的课上完了（或本来就没课）：主角卡给一条"明天第一节"的提示
     val tomorrowFirst = if (
         overview.state == CourseLogic.TodayState.DONE ||
@@ -127,6 +131,18 @@ fun TodayScreen(onOpenTodos: () -> Unit = {}) {
         item { TodayHero(overview, tomorrowFirst, st.slots) }
 
         item { WeekOverviewCard(weekStats) }
+
+        // 考试倒计时：有学习通同步来的考试才出现
+        if (exams.isNotEmpty()) {
+            item {
+                ExamCountdownCard(
+                    exams = exams,
+                    today = today,
+                    courses = st.courses,
+                    onOpen = onOpenTodos
+                )
+            }
+        }
 
         item {
             val preview = TodoLogic.preview(st.todos, today, now)
@@ -336,6 +352,85 @@ private fun WeekOverviewCard(stats: CourseLogic.WeekStats) {
                 style = MaterialTheme.typography.labelSmall,
                 fontWeight = FontWeight.Bold,
                 color = accent
+            )
+        }
+    }
+}
+
+// ---------- 考试倒计时 ----------
+
+/** 最近一场考试的大号倒计时；下面顺带预告第二场 */
+@Composable
+private fun ExamCountdownCard(
+    exams: List<CourseTodo>,
+    today: LocalDate,
+    courses: List<CourseBean>,
+    onOpen: () -> Unit
+) {
+    val muted = MaterialTheme.colorScheme.onSurfaceVariant
+    val nearest = exams.first()
+    val days = TodoLogic.daysUntil(nearest, today)
+    val accent = if (days <= 3) MaterialTheme.colorScheme.error else MaterialTheme.colorScheme.primary
+    val due = LocalDate.ofEpochDay(nearest.dueDate)
+    val timeText = if (nearest.dueMinute >= 0) {
+        " %02d:%02d".format(nearest.dueMinute / 60, nearest.dueMinute % 60)
+    } else ""
+    val courseName = courses.firstOrNull { it.id == nearest.courseId }?.name
+    val meta = listOfNotNull(courseName, "${due.monthValue}月${due.dayOfMonth}日$timeText")
+        .joinToString(" · ")
+
+    GlassCard(Modifier.fillMaxWidth(), onClick = onOpen) {
+        Row(verticalAlignment = Alignment.CenterVertically) {
+            Text(
+                "考试倒计时",
+                style = MaterialTheme.typography.titleSmall,
+                fontWeight = FontWeight.SemiBold
+            )
+            Spacer(Modifier.weight(1f))
+            Text(
+                "共 ${exams.size} 场",
+                style = MaterialTheme.typography.labelMedium,
+                color = muted
+            )
+        }
+        Spacer(Modifier.height(10.dp))
+        Row(verticalAlignment = Alignment.CenterVertically) {
+            Column(Modifier.weight(1f)) {
+                Text(
+                    nearest.text,
+                    style = MaterialTheme.typography.titleMedium,
+                    fontWeight = FontWeight.Bold,
+                    maxLines = 2
+                )
+                Spacer(Modifier.height(4.dp))
+                Text(meta, style = MaterialTheme.typography.bodySmall, color = muted)
+            }
+            Spacer(Modifier.width(12.dp))
+            Row(verticalAlignment = Alignment.Bottom) {
+                Text(
+                    days.toString(),
+                    fontSize = 34.sp,
+                    lineHeight = 34.sp,
+                    fontWeight = FontWeight.Bold,
+                    color = accent
+                )
+                Text(
+                    "天",
+                    style = MaterialTheme.typography.labelMedium,
+                    color = muted,
+                    modifier = Modifier.padding(start = 3.dp, bottom = 4.dp)
+                )
+            }
+        }
+        if (exams.size > 1) {
+            val next = exams[1]
+            val nextDue = LocalDate.ofEpochDay(next.dueDate)
+            Spacer(Modifier.height(8.dp))
+            Text(
+                "下一场：${nextDue.monthValue}月${nextDue.dayOfMonth}日 · ${next.text}",
+                style = MaterialTheme.typography.bodySmall,
+                color = muted,
+                maxLines = 1
             )
         }
     }

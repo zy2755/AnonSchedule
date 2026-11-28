@@ -60,6 +60,7 @@ fun EditCourseScreen(courseId: Long, onBack: () -> Unit) {
     var name by remember { mutableStateOf(existing?.name ?: "") }
     var teacher by remember { mutableStateOf(existingDetail?.teacher ?: "") }
     var room by remember { mutableStateOf(existingDetail?.room ?: "") }
+    var note by remember { mutableStateOf(existing?.note ?: "") }
     var color by remember { mutableIntStateOf(existing?.color ?: (st.courses.size % courseColors.size)) }
     var day by remember { mutableIntStateOf(existingDetail?.day ?: 1) }
     var startNode by remember { mutableIntStateOf(existingDetail?.startNode ?: 1) }
@@ -86,7 +87,8 @@ fun EditCourseScreen(courseId: Long, onBack: () -> Unit) {
                     name = finalName,
                     color = color,
                     tableId = s.currentTableId,
-                    remind = remind
+                    remind = remind,
+                    note = note.trim()
                 )
                 details = details + DetailBean(
                     id = Repo.nextId(), courseId = cid, day = day, room = room,
@@ -96,7 +98,9 @@ fun EditCourseScreen(courseId: Long, onBack: () -> Unit) {
                 )
             } else {
                 courses = courses.map {
-                    if (it.id == existing.id) it.copy(name = finalName, color = color, remind = remind) else it
+                    if (it.id == existing.id) it.copy(
+                        name = finalName, color = color, remind = remind, note = note.trim()
+                    ) else it
                 }
                 details = if (existingDetail == null) details else details.map {
                     if (it.id == existingDetail.id) it.copy(
@@ -162,6 +166,15 @@ fun EditCourseScreen(courseId: Long, onBack: () -> Unit) {
             OutlinedTextField(
                 value = room, onValueChange = { room = it },
                 label = { Text("上课地点") }, modifier = Modifier.fillMaxWidth()
+            )
+            OutlinedTextField(
+                value = note, onValueChange = { note = it },
+                label = { Text("课程备注") },
+                placeholder = { Text("群号、课件链接、考试范围…") },
+                minLines = 3,
+                maxLines = 6,
+                supportingText = { Text("详情里显示，链接可以直接点开") },
+                modifier = Modifier.fillMaxWidth()
             )
 
             Text("课程颜色", style = MaterialTheme.typography.labelLarge)
